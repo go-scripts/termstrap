@@ -248,7 +248,9 @@ func applyShadowIntelligent(content string, shadowSize, maxWidth int) string {
 
 	// Add bottom shadow rows - keep original shadowSize for line count
 	// but use effectiveShadow for the actual width to prevent overflow
-	bottomShadow := shadowStyle.Render(strings.Repeat(shadowChar, maxContentWidth+effectiveShadow))
+	// Bottom shadow width = maxContentWidth (not + effectiveShadow) because
+	// the leading spaces (effectiveShadow) already bring total to maxContentWidth + effectiveShadow
+	bottomShadow := shadowStyle.Render(strings.Repeat(shadowChar, maxContentWidth))
 	for i := 0; i < shadowSize; i++ {
 		result = append(result, strings.Repeat(" ", effectiveShadow)+bottomShadow)
 	}
@@ -277,10 +279,18 @@ func calculateShadowMetrics(contentWidth, shadowSize, maxWidth int) shadowMetric
 		ContentWidth: contentWidth,
 		ShadowWidth:  shadowSize,
 	}
-	fmt.Printf("shadowSize: %d, contentWidth: %d, maxWidth: %d\n", shadowSize, contentWidth, maxWidth)
+
+	// No width constraint: use requested shadow size as-is
+	if maxWidth <= 0 {
+		metrics.WillOverflow = false
+		metrics.AdjustedShadow = shadowSize
+		metrics.TotalWidth = contentWidth + shadowSize
+		metrics.BottomShadowWidth = contentWidth
+		return metrics
+	}
+
 	// Calculate total width if shadow is rendered
 	totalWithShadow := contentWidth + shadowSize
-	fmt.Printf("totalWithShadow: %d\n", totalWithShadow)
 
 	// Check if shadow would overflow
 	if totalWithShadow > maxWidth {
@@ -297,8 +307,9 @@ func calculateShadowMetrics(contentWidth, shadowSize, maxWidth int) shadowMetric
 		metrics.TotalWidth = totalWithShadow
 	}
 
-	// Bottom shadow width includes the adjusted shadow size
-	metrics.BottomShadowWidth = contentWidth + metrics.AdjustedShadow
+	// Bottom shadow width matches content width; the leading offset spaces
+	// bring the total line width to contentWidth + AdjustedShadow
+	metrics.BottomShadowWidth = contentWidth
 
 	return metrics
 }
@@ -370,6 +381,7 @@ func applyShadowWithWidth(content string, shadowSize, maxWidth int) string {
 	}
 
 	// Add shadow at the bottom
+	// Bottom shadow width = content width; offset spaces bring total to content + shadow
 	bottomShadow := shadowStyle.Render(strings.Repeat(shadowChar, metrics.BottomShadowWidth))
 	for i := 0; i < metrics.AdjustedShadow; i++ {
 		result = append(result, strings.Repeat(" ", metrics.AdjustedShadow)+bottomShadow)

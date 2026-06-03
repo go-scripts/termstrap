@@ -3,6 +3,8 @@ package termstrap
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestCalculateShadowMetrics(t *testing.T) {
@@ -25,13 +27,13 @@ func TestCalculateShadowMetrics(t *testing.T) {
 			expectTotal:    72,
 		},
 		{
-			name:           "Shadow overflows - auto reduced",
+			name:           "Shadow fits with room to spare",
 			contentWidth:   76,
 			shadowSize:     3,
 			maxWidth:       80,
-			expectOverflow: true,
-			expectAdjusted: 4,
-			expectTotal:    80,
+			expectOverflow: false,
+			expectAdjusted: 3,
+			expectTotal:    79,
 		},
 		{
 			name:           "Very narrow space - minimum shadow",
@@ -47,7 +49,7 @@ func TestCalculateShadowMetrics(t *testing.T) {
 			contentWidth:   77,
 			shadowSize:     3,
 			maxWidth:       80,
-			expectOverflow: true,
+			expectOverflow: false,
 			expectAdjusted: 3,
 			expectTotal:    80,
 		},
@@ -109,16 +111,17 @@ func TestApplyShadowWithWidthBasic(t *testing.T) {
 
 func TestApplyShadowWithWidthOverflow(t *testing.T) {
 	// Create a content that's exactly maxWidth - 1, with shadow size 3
-	// This should trigger overflow detection
+	// 77 + 3 = 80, fits exactly
 	content := strings.Repeat("X", 77) // 77 chars
 
 	result := applyShadowWithWidth(content, 3, 80)
 	lines := strings.Split(result, "\n")
 
-	// Check that content lines fit within 80
+	// Check that content lines fit within 80 using visual width (not byte length)
 	for _, line := range lines {
-		if len(line) > 80 {
-			t.Errorf("Line exceeds max width: %d > 80", len(line))
+		w := lipgloss.Width(line)
+		if w > 80 {
+			t.Errorf("Line visual width exceeds max width: %d > 80", w)
 		}
 	}
 }
