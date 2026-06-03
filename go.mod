@@ -7,9 +7,11 @@ require (
 	github.com/PuerkitoBio/goquery v1.9.2
 	github.com/charmbracelet/glamour v0.7.0
 	github.com/charmbracelet/lipgloss v0.12.1
+	github.com/mattn/go-sixel v0.0.9
+	github.com/muesli/termenv v0.16.0
 	github.com/stroborobo/aimg v0.0.0-20160313155118-8966abff05e4
 	golang.org/x/image v0.41.0
-	golang.org/x/term v0.19.0
+	golang.org/x/term v0.38.0
 )
 
 require (
@@ -34,13 +36,13 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.25 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/olekukonko/ts v0.0.0-20171002115256-78ecb04241c0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/stroborobo/ansirgb v0.0.0-20160218213018-c938d9fb2e25 // indirect
 	github.com/yuin/goldmark v1.5.4 // indirect
 	github.com/yuin/goldmark-emoji v1.0.2 // indirect
 	golang.org/x/net v0.24.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 )

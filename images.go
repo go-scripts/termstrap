@@ -2,24 +2,13 @@ package termstrap
 
 import (
 	"fmt"
+	"image"
 	"log"
-	"net/http"
-	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/stroborobo/aimg"
-
-	// Register image decoders for image.Decode() used by aimg.
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-
-	_ "golang.org/x/image/bmp"
-	_ "golang.org/x/image/tiff"
-	_ "golang.org/x/image/webp"
+	termimage "github.com/go-scripts/termstrap/image"
 )
 
 // imageInfo holds information about a markdown image to render.
@@ -58,8 +47,11 @@ func extractImages(content string) (string, map[string]imageInfo) {
 	return newContent, imageMap
 }
 
-// renderImages replaces image placeholders in the rendered content with ANSI art.
+// renderImages replaces image placeholders in the rendered content
+// using the auto-detected (or user-configured) graphics protocol.
 func (m Model) renderImages(content string, imageMap map[string]imageInfo) string {
+	renderer := m.imageRenderer()
+
 	for placeholder, img := range imageMap {
 		imgWidth := m.Width / 2
 		if img.width > 0 {
@@ -69,18 +61,136 @@ func (m Model) renderImages(content string, imageMap map[string]imageInfo) strin
 			imgWidth = m.Width
 		}
 
-		var rendered string
-		var ok bool
-
-		if isURL(img.url) {
-			rendered, ok = renderImageFromURL(img.url, imgWidth)
-		} else {
-			rendered, ok = renderImageLocal(img.url, m.RootPath, imgWidth)
-		}
-
+		rendered, ok := m.renderImage(renderer, img.url, imgWidth)
 		content = replacePlaceholder(content, placeholder, rendered, ok)
 	}
 	return content
+}
+
+// deferredImage tracks an image that should be rendered with a native
+// graphics protocol via cursor-based overlay after text layout is composed.
+type deferredImage struct {
+	img    image.Image // loaded image data
+	width  int         // display width in terminal columns
+	height int         // estimated visual height in terminal rows
+	row    int         // line offset within the column content (post-glamour)
+}
+
+// renderImagesDeferred replaces image placeholders with blank space of the
+// correct dimensions for layout, and collects image data for later native
+// protocol overlay rendering.
+func (m Model) renderImagesDeferred(content string, imageMap map[string]imageInfo, proto termimage.Protocol) (string, []deferredImage) {
+	var deferred []deferredImage
+
+	for placeholder, info := range imageMap {
+		imgWidth := m.Width / 2
+		if info.width > 0 {
+			imgWidth = info.width
+		}
+		if imgWidth > m.Width {
+			imgWidth = m.Width
+		}
+
+		goImg, ok := m.loadImage(info.url)
+		if !ok {
+			content = replacePlaceholder(content, placeholder, "", false)
+			continue
+		}
+
+		visualHeight := termimage.EstimateVisualHeight(goImg, imgWidth, proto)
+		linesBefore := findPlaceholderLine(content, placeholder)
+
+		// Build blank placeholder: imgWidth columns × visualHeight rows.
+		// Do NOT use addImagePadding here — TrimSpace would destroy the blank lines.
+		blankLine := strings.Repeat(" ", imgWidth)
+		blankLines := make([]string, visualHeight)
+		for i := range blankLines {
+			blankLines[i] = blankLine
+		}
+		blank := strings.Join(blankLines, "\n")
+
+		deferred = append(deferred, deferredImage{
+			img:    goImg,
+			width:  imgWidth,
+			height: visualHeight,
+			row:    linesBefore,
+		})
+
+		content = replacePlaceholder(content, placeholder, blank, true)
+	}
+
+	return content, deferred
+}
+
+// loadImage loads an image from a URL or local path.
+func (m Model) loadImage(src string) (image.Image, bool) {
+	var (
+		goImg image.Image
+		err   error
+	)
+	if termimage.IsURL(src) {
+		goImg, err = termimage.LoadFromURL(src)
+	} else {
+		goImg, err = termimage.LoadFromPath(src, m.RootPath)
+	}
+	if err != nil {
+		log.Printf("Warning: %v", err)
+		return nil, false
+	}
+	return goImg, true
+}
+
+// findPlaceholderLine returns the 0-based line number where a placeholder
+// appears in content. Handles ANSI codes injected by glamour.
+func findPlaceholderLine(content, placeholder string) int {
+	// Fast path: direct match
+	if idx := strings.Index(content, placeholder); idx >= 0 {
+		return strings.Count(content[:idx], "\n")
+	}
+	// Slow path: ANSI-tolerant regex
+	ansiOpt := `(?:\x1b\[[^m]*m)*`
+	var pattern strings.Builder
+	pattern.WriteString(ansiOpt)
+	for _, ch := range placeholder {
+		pattern.WriteString(regexp.QuoteMeta(string(ch)))
+		pattern.WriteString(ansiOpt)
+	}
+	re := regexp.MustCompile(pattern.String())
+	loc := re.FindStringIndex(content)
+	if loc != nil {
+		return strings.Count(content[:loc[0]], "\n")
+	}
+	return 0
+}
+
+// renderImage loads an image from a URL or local path and renders it
+// using the given renderer.
+func (m Model) renderImage(r termimage.Renderer, src string, width int) (string, bool) {
+	var (
+		goImg image.Image
+		err   error
+	)
+
+	if termimage.IsURL(src) {
+		goImg, err = termimage.LoadFromURL(src)
+	} else {
+		goImg, err = termimage.LoadFromPath(src, m.RootPath)
+	}
+	if err != nil {
+		log.Printf("Warning: %v", err)
+		return "", false
+	}
+
+	rendered, err := r.Render(goImg, width)
+	if err != nil {
+		log.Printf("Warning: render image %s: %v", src, err)
+		return "", false
+	}
+	if strings.TrimSpace(rendered) == "" {
+		log.Printf("Warning: image rendered as empty for %s", src)
+		return "", false
+	}
+	return addImagePadding(rendered, 2), true
 }
 
 // replacePlaceholder replaces an image placeholder in rendered content,
@@ -106,65 +216,6 @@ func replacePlaceholder(content, placeholder, replacement string, ok bool) strin
 	return re.ReplaceAllLiteralString(content, replacement)
 }
 
-// renderImageFromURL fetches an image from a URL and renders it as ANSI art.
-func renderImageFromURL(imgURL string, width int) (string, bool) {
-	resp, err := http.Get(imgURL)
-	if err != nil {
-		log.Printf("Warning: failed to fetch image %s: %v", imgURL, err)
-		return "", false
-	}
-	defer resp.Body.Close()
-
-	contentType := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") {
-		log.Printf("Warning: unexpected content type for image %s: %s", imgURL, contentType)
-		return "", false
-	}
-	// SVG images cannot be rendered as ANSI art
-	if strings.Contains(contentType, "svg") {
-		log.Printf("Warning: SVG images are not supported for ANSI rendering: %s", imgURL)
-		return "", false
-	}
-
-	img := aimg.NewImage(width)
-	if err := img.ParseReader(resp.Body); err != nil {
-		log.Printf("Warning: failed to decode image %s: %v", imgURL, err)
-		return "", false
-	}
-	result := img.String()
-	if strings.TrimSpace(result) == "" {
-		log.Printf("Warning: image rendered as empty for %s", imgURL)
-		return "", false
-	}
-	return addImagePadding(result, 2), true
-}
-
-// renderImageLocal loads a local image file and renders it as ANSI art.
-func renderImageLocal(path string, rootPath string, width int) (string, bool) {
-	if rootPath != "" && !isURL(path) && !strings.HasPrefix(path, "/") {
-		path = rootPath + "/" + path
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		log.Printf("Warning: failed to open image %s: %v", path, err)
-		return "", false
-	}
-	defer file.Close()
-
-	img := aimg.NewImage(width)
-	if err := img.ParseReader(file); err != nil {
-		log.Printf("Warning: failed to decode image %s: %v", path, err)
-		return "", false
-	}
-	result := img.String()
-	if strings.TrimSpace(result) == "" {
-		log.Printf("Warning: image rendered as empty for %s", path)
-		return "", false
-	}
-	return addImagePadding(result, 2), true
-}
-
 // addImagePadding adds left padding to each line except the first,
 // since the first line inherits indentation from the placeholder position.
 func addImagePadding(input string, spaces int) string {
@@ -178,10 +229,4 @@ func addImagePadding(input string, spaces int) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-// isURL checks if a string is a valid absolute URL.
-func isURL(str string) bool {
-	u, err := url.Parse(str)
-	return err == nil && u.Scheme != "" && u.Host != ""
 }
