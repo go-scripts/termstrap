@@ -528,6 +528,73 @@ func TestThreeColumnImageGrid_BorderConsistency(t *testing.T) {
 	}
 }
 
+func TestSingleRow_ThreeColumns_ThreeImages(t *testing.T) {
+	dir := t.TempDir()
+	imgName := createTestPNG(t, dir, 80, 80)
+
+	html := `<div class="row">
+  <div class="col-md-4 border rounded p-1 text-center">
+
+![left](` + imgName + ` =18)
+
+**Left**
+
+  </div>
+  <div class="col-md-4 border rounded p-1 text-center">
+
+![center](` + imgName + ` =18)
+
+**Center**
+
+  </div>
+  <div class="col-md-4 border rounded p-1 text-center">
+
+![right](` + imgName + ` =18)
+
+**Right**
+
+  </div>
+</div>`
+
+	for _, proto := range []termimage.Protocol{termimage.HalfBlock, termimage.ITerm2, termimage.Kitty} {
+		t.Run(proto.String(), func(t *testing.T) {
+			out := renderHTML(t, html, 110, proto, dir)
+
+			if strings.Contains(out, "TERMSTRAPIMG") {
+				t.Fatal("found unreplaced image placeholder in output")
+			}
+
+			clean := stripAllANSI(out)
+			for _, label := range []string{"Left", "Center", "Right"} {
+				if !strings.Contains(clean, label) {
+					t.Errorf("expected label %q in output", label)
+				}
+			}
+
+			lines := visualLines(out)
+			topCount := 0
+			bottomCount := 0
+			for _, l := range lines {
+				topCount += countTopBorders(l)
+				bottomCount += countBottomBorders(l)
+			}
+			if topCount < 3 {
+				t.Errorf("expected at least 3 top borders, found %d", topCount)
+			}
+			if bottomCount < 3 {
+				t.Errorf("expected at least 3 bottom borders, found %d", bottomCount)
+			}
+
+			rawLines := strings.Split(out, "\n")
+			for i, l := range rawLines {
+				if w := lipgloss.Width(l); w > 110 {
+					t.Errorf("line %d overflows: width=%d > 110", i, w)
+				}
+			}
+		})
+	}
+}
+
 // ---------- side-by-side image + text ----------
 
 func TestSideBySide_ImageAndText_BorderContinuity(t *testing.T) {

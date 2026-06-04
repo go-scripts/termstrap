@@ -17,6 +17,7 @@ var localExamples = []string{
 	"borders",
 	"shadows",
 	"image/local",
+	"image/three-columns",
 }
 
 // networkExamples require fetching remote images.
