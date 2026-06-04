@@ -49,6 +49,15 @@ Below is an image at default width (no size specified):
 
 ---
 
+## Extended Attribute Syntax
+
+![extended](https://go.dev/doc/gopher/frontpage.png, width=40, class=rounded, title='Example')
+
+This image uses the new comma-separated attribute syntax, where "width" is parsed
+and other key/value pairs are preserved for later use.
+
+---
+
 ## Image Between Text
 
 Some text **before** the image. This paragraph demonstrates that images

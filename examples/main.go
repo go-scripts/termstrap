@@ -362,7 +362,7 @@ A full-width card with **border**, **rounded corners**, **shadow**, **dark backg
 <div class="row">
   <div class="col-md-6 border rounded p-1">
 
-![side-img](https://go.dev/doc/gopher/pkg.png =30)
+![side-img](https://go.dev/doc/gopher/pkg.png)
 
   </div>
   <div class="col-md-6 p-2">

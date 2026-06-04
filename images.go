@@ -15,11 +15,64 @@ import (
 type imageInfo struct {
 	url   string
 	width int // 0 = default (half terminal width)
+	attrs map[string]string
 }
 
-// imageMarkdownRegex matches markdown image syntax with optional width.
-// Supports: ![alt](url) and ![alt](url =width)
-var imageMarkdownRegex = regexp.MustCompile(`!\[.*?\]\((.*?)(?:\s+=([0-9]+))?\)`)
+// imageMarkdownRegex matches markdown image syntax with optional width or
+// comma-separated attributes.
+// Supports:
+//
+//	![alt](url)
+//	![alt](url =40)
+//	![alt](url, width=40, class=rounded)
+var imageMarkdownRegex = regexp.MustCompile(`!\[.*?\]\(([^)]*)\)`)
+var legacyImageWidthRegex = regexp.MustCompile(`\s+=\s*([0-9]+)$`)
+
+func parseMarkdownImageSpec(raw string) (string, map[string]string) {
+	raw = strings.TrimSpace(raw)
+	attrs := make(map[string]string)
+
+	commaIndex := strings.Index(raw, ",")
+	if commaIndex >= 0 {
+		imgURL := strings.TrimSpace(raw[:commaIndex])
+		attrs = parseImageAttributes(raw[commaIndex+1:])
+		return imgURL, attrs
+	}
+
+	if matches := legacyImageWidthRegex.FindStringSubmatch(raw); len(matches) == 2 {
+		imgURL := strings.TrimSpace(raw[:len(raw)-len(matches[0])])
+		attrs["width"] = matches[1]
+		return imgURL, attrs
+	}
+
+	return raw, attrs
+}
+
+func parseImageAttributes(raw string) map[string]string {
+	attrs := make(map[string]string)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		kv := strings.SplitN(part, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+
+		key := strings.ToLower(strings.TrimSpace(kv[0]))
+		value := strings.TrimSpace(kv[1])
+		if len(value) >= 2 {
+			if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
+				(strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`)) {
+				value = strings.Trim(value, `"'`)
+			}
+		}
+		attrs[key] = value
+	}
+	return attrs
+}
 
 // extractImages finds all markdown images, replaces them with placeholders,
 // and returns the modified content along with a map of placeholder → image info.
@@ -29,18 +82,18 @@ func extractImages(content string) (string, map[string]imageInfo) {
 
 	newContent := imageMarkdownRegex.ReplaceAllStringFunc(content, func(match string) string {
 		submatches := imageMarkdownRegex.FindStringSubmatch(match)
-		imgURL := submatches[1]
+		imgURL, attrs := parseMarkdownImageSpec(submatches[1])
 		var imgWidth int
-		if submatches[2] != "" {
+		if widthStr, ok := attrs["width"]; ok && widthStr != "" {
 			var err error
-			imgWidth, err = strconv.Atoi(submatches[2])
+			imgWidth, err = strconv.Atoi(widthStr)
 			if err != nil {
-				log.Printf("Warning: invalid image width '%s', using default. Error: %v", submatches[2], err)
+				log.Printf("Warning: invalid image width '%s', using default. Error: %v", widthStr, err)
 			}
 		}
 		counter++
 		placeholder := fmt.Sprintf("TERMSTRAPIMG%dHOLDER", counter)
-		imageMap[placeholder] = imageInfo{url: imgURL, width: imgWidth}
+		imageMap[placeholder] = imageInfo{url: imgURL, width: imgWidth, attrs: attrs}
 		return placeholder
 	})
 
@@ -87,8 +140,15 @@ func (m Model) renderImagesDeferred(content string, imageMap map[string]imageInf
 		if info.width > 0 {
 			imgWidth = info.width
 		}
-		if imgWidth > m.Width {
-			imgWidth = m.Width
+		// Cap image width to content area minus glamour's paragraph indent (~2 chars).
+		// The placeholder replaces text within a glamour-indented line, so the
+		// total line width is glamourIndent + imgWidth. This must fit within m.Width.
+		maxImgWidth := m.Width - 2
+		if maxImgWidth < 1 {
+			maxImgWidth = 1
+		}
+		if imgWidth > maxImgWidth {
+			imgWidth = maxImgWidth
 		}
 
 		goImg, ok := m.loadImage(info.url)
