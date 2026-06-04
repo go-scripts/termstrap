@@ -59,6 +59,7 @@ image/              → Sous-package : rendu images multi-protocole
 - Constantes : `camelCase` pour les iota (`HalfBlock`, `bpMD`), `camelCase` pour les seuils (`thresholdMD`).
 - Constructeurs : `New*` pattern (`NewRenderer`).
 - Méthodes privées du Model : `renderMarkdown`, `renderColumn`, `renderImages`.
+- Variables : `camelCase` (`ansiRegex`, `htmlBlockRegex`). Jamais de variables sur une ou deux lettres (sauf si pertinente, ex: `i` dans `for i := 0; i < n; i++`). Le nom de la variable doit représenter ce quelle contient.
 
 ### Patterns utilisés
 
