@@ -249,7 +249,7 @@ func applyPartialBorders(content string, width int, top, bottom, left, right boo
 	for _, line := range lines {
 		// Measure visible width (ignore ANSI codes)
 		visibleWidth := lipgloss.Width(line)
-		
+
 		// Padding needed to reach target width
 		padCount := width
 		if left {

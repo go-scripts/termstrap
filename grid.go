@@ -101,20 +101,12 @@ func resolveColumnWidths(row *gridRow, termWidth int, bp breakpoint) {
 // based on its classes and the current breakpoint.
 // Falls back to smaller breakpoints if the current one isn't specified.
 func resolveColSpan(classes []string, bp breakpoint) int {
-	// Try from current breakpoint down to xs
-	breakpoints := []breakpoint{bp, bpLG, bpMD, bpSM, bpXS}
-	seen := map[breakpoint]bool{}
-
-	for _, b := range breakpoints {
-		if b > bp || seen[b] {
-			continue
-		}
-		seen[b] = true
-
+	// Walk from the current breakpoint DOWN to xs, returning the first matching span.
+	// This ensures col-md-6 used on a small screen falls back to matching col-* or col-sm-* or col-xs-* as available.
+	for b := bp; b >= bpXS; b-- {
 		prefix := breakpointPrefix(b)
 		for _, class := range classes {
-			span := parseColClass(class, prefix)
-			if span > 0 {
+			if span := parseColClass(class, prefix); span > 0 {
 				return span
 			}
 		}

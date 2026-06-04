@@ -45,7 +45,7 @@ test-unit:
 	go test -v -count=1 -run 'Test(HexToRGB|TrimBlank|PersistColors|AddPadding|WrapLong|StripANSI)' .
 
 test-layout:
-	go test -v -count=1 -run 'Test(Border|NoOverflow|ThreeColumn|SideBySide|ColumnWidth|RowLevel|BackgroundColor|Layout_Multiple|ImagePlaceholder)' .
+	go test -v -count=1 -run 'Test(Border|NoOverflow|ThreeColumn|SingleRow|SideBySide|ColumnWidth|RowLevel|BackgroundColor|Layout_Multiple|ImagePlaceholder)' .
 
 test-shadow:
 	go test -v -count=1 -run 'Test(Shadow|CalculateShadow|ApplyShadow)' .
@@ -64,7 +64,7 @@ test-deferred:
 
 # --- Examples ---
 
-EXAMPLES_LOCAL  = breakpoints styling nested borders shadows image/local
+EXAMPLES_LOCAL  = breakpoints styling nested borders shadows image/local image/three-columns nested-no-md
 EXAMPLES_NET    = . image/detect image/formats image/grid image/markdown image/protocols
 EXAMPLES_ALL    = $(EXAMPLES_LOCAL) $(EXAMPLES_NET)
 
@@ -162,6 +162,6 @@ help:
 	@printf '  $(C_CYAN)make clean$(C_RESET)               Remove generated files (cover.out, cover.html)\n'
 	@printf '\n'
 	@printf '  $(C_DIM)Available examples: breakpoints, styling, nested, borders, shadows,$(C_RESET)\n'
-	@printf '  $(C_DIM)image/local, image/detect, image/formats, image/grid,$(C_RESET)\n'
+	@printf '  $(C_DIM)image/local, image/three-columns, image/detect, image/formats, image/grid,$(C_RESET)\n'
 	@printf '  $(C_DIM)image/markdown, image/protocols$(C_RESET)\n'
 	@printf '\n'
