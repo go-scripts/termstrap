@@ -32,17 +32,34 @@ func (r *kittyRenderer) Render(img image.Image, width int) (string, error) {
 	payload := base64.StdEncoding.EncodeToString(buf.Bytes())
 
 	// Build chunked APC sequences (max 4096 bytes per chunk)
-	return kittyBuildSequence(payload, img.Bounds().Dx(), img.Bounds().Dy()), nil
+	return kittyBuildSequence(payload, img.Bounds().Dx(), img.Bounds().Dy(), 0, 0), nil
+}
+
+// RenderConstrained renders an image constrained to width columns and height rows.
+// The c= and r= placement parameters tell Kitty to fit the image within the
+// specified cell dimensions.
+func (r *kittyRenderer) RenderConstrained(img image.Image, width, height int) (string, error) {
+	pxWidth := ColsToPixels(width, 0)
+	img = ResizeToWidth(img, pxWidth)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "", fmt.Errorf("kitty: encode PNG: %w", err)
+	}
+
+	payload := base64.StdEncoding.EncodeToString(buf.Bytes())
+	return kittyBuildSequence(payload, img.Bounds().Dx(), img.Bounds().Dy(), width, height), nil
 }
 
 // kittyChunkSize is the max base64 payload per APC chunk.
 const kittyChunkSize = 4096
 
 // kittyBuildSequence constructs the full Kitty graphics protocol output.
-// First chunk: \x1b_Ga=T,f=100,s=W,v=H,m=1;<chunk>\x1b\\
+// cols and rows are optional display size constraints (0 = unset).
+// First chunk: \x1b_Ga=T,f=100,s=W,v=H[,c=C,r=R],m=1;<chunk>\x1b\\
 // Middle chunks: \x1b_Gm=1;<chunk>\x1b\\
 // Last chunk: \x1b_Gm=0;<chunk>\x1b\\
-func kittyBuildSequence(payload string, w, h int) string {
+func kittyBuildSequence(payload string, w, h, cols, rows int) string {
 	var out bytes.Buffer
 
 	chunks := splitPayload(payload, kittyChunkSize)
@@ -53,6 +70,12 @@ func kittyBuildSequence(payload string, w, h int) string {
 		if i == 0 {
 			// First chunk: include image metadata
 			fmt.Fprintf(&out, "a=T,f=100,s=%d,v=%d", w, h)
+			if cols > 0 {
+				fmt.Fprintf(&out, ",c=%d", cols)
+			}
+			if rows > 0 {
+				fmt.Fprintf(&out, ",r=%d", rows)
+			}
 		}
 		if total == 1 {
 			// Single chunk: m=0 (no more data)

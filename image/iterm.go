@@ -39,3 +39,25 @@ func (r *itermRenderer) Render(img image.Image, width int) (string, error) {
 
 	return out.String(), nil
 }
+
+// RenderConstrained renders an image constrained to width columns and height rows.
+// The height parameter is passed to iTerm2 so the terminal fits the image within
+// the specified cell dimensions, preventing overflow in bordered containers.
+func (r *itermRenderer) RenderConstrained(img image.Image, width, height int) (string, error) {
+	pxWidth := ColsToPixels(width, 0)
+	img = ResizeToWidth(img, pxWidth)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "", fmt.Errorf("iterm2: encode PNG: %w", err)
+	}
+
+	payload := base64.StdEncoding.EncodeToString(buf.Bytes())
+	size := buf.Len()
+
+	var out bytes.Buffer
+	fmt.Fprintf(&out, "\x1b]1337;File=inline=1;size=%d;width=%d;height=%d;preserveAspectRatio=1:%s\a\n",
+		size, width, height, payload)
+
+	return out.String(), nil
+}

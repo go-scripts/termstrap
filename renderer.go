@@ -347,8 +347,16 @@ func (m Model) appendImageOverlays(output string, overlays []colOverlay, columns
 			// Move cursor to the image column (1-based CHA)
 			fmt.Fprintf(&buf, "\x1b[%dG", absCol+1)
 
-			// Render image with native protocol
-			rendered, err := renderer.Render(di.img, di.width)
+			// Render image with height constraint to prevent overflow.
+			// ConstrainedRenderer tells the terminal to fit the image within
+			// the exact width×height cell box, preventing border overflow.
+			var rendered string
+			var err error
+			if cr, ok := renderer.(termimage.ConstrainedRenderer); ok {
+				rendered, err = cr.RenderConstrained(di.img, di.width, di.height)
+			} else {
+				rendered, err = renderer.Render(di.img, di.width)
+			}
 			if err == nil {
 				buf.WriteString(rendered)
 			}

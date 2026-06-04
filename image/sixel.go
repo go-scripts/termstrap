@@ -31,3 +31,22 @@ func (r *sixelRenderer) Render(img image.Image, width int) (string, error) {
 
 	return buf.String() + "\n", nil
 }
+
+// RenderConstrained renders an image constrained to width columns and height rows.
+// For Sixel, this pre-resizes the image to fit within the pixel dimensions
+// corresponding to the given cell constraints.
+func (r *sixelRenderer) RenderConstrained(img image.Image, width, height int) (string, error) {
+	pxWidth := ColsToPixels(width, 0)
+	pxHeight := height * defaultCellHeight
+	img = ResizeToFit(img, pxWidth, pxHeight)
+
+	var buf bytes.Buffer
+	enc := sixel.NewEncoder(&buf)
+	enc.Dither = true
+
+	if err := enc.Encode(img); err != nil {
+		return "", fmt.Errorf("sixel: encode: %w", err)
+	}
+
+	return buf.String() + "\n", nil
+}

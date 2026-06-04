@@ -69,6 +69,16 @@ type Renderer interface {
 	Protocol() Protocol
 }
 
+// ConstrainedRenderer is optionally implemented by renderers that support
+// both width and height constraints. This prevents images from overflowing
+// their allocated space in bordered/padded containers.
+type ConstrainedRenderer interface {
+	Renderer
+	// RenderConstrained renders an image constrained to fit within the given
+	// width (columns) and height (rows). The image must not exceed these dimensions.
+	RenderConstrained(img image.Image, width, height int) (string, error)
+}
+
 // Option configures a Renderer created by NewRenderer.
 type Option func(*options)
 

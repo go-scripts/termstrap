@@ -106,6 +106,39 @@ func ResizeToWidth(img image.Image, targetWidth int) image.Image {
 	return dst
 }
 
+// ResizeToFit scales an image to fit within both maxWidth and maxHeight pixels,
+// preserving aspect ratio. Returns the original image if it already fits.
+func ResizeToFit(img image.Image, maxWidth, maxHeight int) image.Image {
+	bounds := img.Bounds()
+	origW := bounds.Dx()
+	origH := bounds.Dy()
+
+	if origW <= maxWidth && origH <= maxHeight {
+		return img
+	}
+
+	ratio := 1.0
+	if origW > maxWidth {
+		ratio = float64(maxWidth) / float64(origW)
+	}
+	if float64(origH)*ratio > float64(maxHeight) {
+		ratio = float64(maxHeight) / float64(origH)
+	}
+
+	newW := int(float64(origW) * ratio)
+	newH := int(float64(origH) * ratio)
+	if newW < 1 {
+		newW = 1
+	}
+	if newH < 1 {
+		newH = 1
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+	return dst
+}
+
 // ColsToPixels converts terminal column width to approximate pixel width.
 // If cellWidth is unknown (0), assumes 8 pixels per cell (common default).
 func ColsToPixels(cols, cellWidthPx int) int {

@@ -152,12 +152,12 @@ func TestResizeToWidth(t *testing.T) {
 
 func TestColsToPixels(t *testing.T) {
 	tests := []struct {
-		cols        int
-		cellWidth   int
-		expectedPx  int
+		cols       int
+		cellWidth  int
+		expectedPx int
 	}{
 		{80, 8, 640},
-		{40, 0, 320},  // 0 cellWidth defaults to 8
+		{40, 0, 320}, // 0 cellWidth defaults to 8
 		{100, 10, 1000},
 	}
 	for _, tt := range tests {
@@ -308,7 +308,7 @@ func TestNewRendererWithProtocol(t *testing.T) {
 
 func TestEstimateVisualHeight(t *testing.T) {
 	tests := []struct {
-		name      string
+		name       string
 		imgW, imgH int
 		widthCols  int
 		proto      Protocol
@@ -339,7 +339,7 @@ func TestEstimateVisualHeight(t *testing.T) {
 			name: "halfblock 1px image",
 			imgW: 1, imgH: 1, widthCols: 10,
 			proto: HalfBlock,
-			want: 1,
+			want:  1,
 		},
 		{
 			name: "kitty wide image",
