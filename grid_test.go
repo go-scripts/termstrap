@@ -283,3 +283,50 @@ func TestResolveColumnWidths_MixedFixedAndAuto(t *testing.T) {
 		t.Errorf("auto col width = %d, want 60", row.Columns[1].Width)
 	}
 }
+
+func TestParseGrid_DeeplyIndentedHTML(t *testing.T) {
+	// Test that parseGrid handles deeply indented HTML without issues.
+	// goquery parses HTML correctly regardless of indentation.
+	html := `<div class="row">
+    <div class="col-md-6">
+        <div class="row">
+            <div class="col-md-6">
+                Deeply nested content
+            </div>
+            <div class="col-md-6">
+                More nested
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">Right column</div>
+</div>`
+
+	rows, err := parseGrid(html, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should only parse the top-level row (nested rows handled recursively)
+	if len(rows) != 1 {
+		t.Errorf("expected 1 top-level row, got %d", len(rows))
+	}
+
+	// Top row should have 2 columns
+	if len(rows[0].Columns) != 2 {
+		t.Errorf("expected 2 columns in row, got %d", len(rows[0].Columns))
+	}
+
+	// Both should be col-md-6
+	for i, col := range rows[0].Columns {
+		found := false
+		for _, c := range col.Classes {
+			if c == "col-md-6" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("col[%d] classes = %v, expected col-md-6", i, col.Classes)
+		}
+	}
+}
