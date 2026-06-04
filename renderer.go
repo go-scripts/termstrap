@@ -157,7 +157,7 @@ func (m Model) renderColumn(col gridColumn, stacked bool, forceHalfBlock bool) (
 
 	// Width for partial borders (before any shadow reduction)
 	partialBorderWidth := styleWidth
-	
+
 	// Reserve space for shadow: reduce styleWidth BEFORE applying lipgloss styling
 	// so the box itself is smaller and the shadow has room
 	if colStyle.Shadow > 0 {
@@ -173,7 +173,8 @@ func (m Model) renderColumn(col gridColumn, stacked bool, forceHalfBlock bool) (
 		contentWidth = 10
 	}
 
-	// Render the column content (markdown + images)
+	// Render the column content using the full pipeline (extractSegments → renderHTMLLayout
+	// for nested rows, renderMarkdown for plain markdown). This enables recursive grid rendering.
 	colModel := Model{
 		Content:  col.Content,
 		Width:    contentWidth,
@@ -186,7 +187,7 @@ func (m Model) renderColumn(col gridColumn, stacked bool, forceHalfBlock bool) (
 	} else {
 		colModel.ImageRenderer = m.ImageRenderer
 	}
-	rendered, err := colModel.renderMarkdown(col.Content)
+	rendered, err := colModel.Render()
 	if err != nil {
 		return "", err
 	}

@@ -30,6 +30,11 @@ func parseGrid(htmlContent string, termWidth int) ([]gridRow, error) {
 	rows := []gridRow{}
 
 	doc.Find(".row").Each(func(_ int, rowSel *goquery.Selection) {
+		// Skip nested rows — they will be rendered recursively by their parent column
+		if rowSel.ParentsFiltered(".row").Length() > 0 {
+			return
+		}
+
 		row := gridRow{}
 
 		classAttr, _ := rowSel.Attr("class")
