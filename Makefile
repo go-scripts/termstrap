@@ -39,6 +39,8 @@ test-cover-html:
 	open cover.html
 	@rm -f cover.out
 
+test-all: test-unit test-layout test-shadow test-image test-grid test-utils test-deferred
+
 # --- Tests (granular) ---
 
 test-unit:
