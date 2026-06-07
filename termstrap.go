@@ -13,8 +13,21 @@
 package termstrap
 
 import (
+	"strings"
+
 	termimage "github.com/go-scripts/termstrap/image"
 )
+
+// ImageOverlay represents a native image escape sequence separated from the
+// rendered text. This allows consumers that use cell-based buffers (TUI frameworks,
+// multiplexers) to emit image sequences through a raw/passthrough channel.
+type ImageOverlay struct {
+	Row    int    // Line number (0-based) in the rendered text where image starts
+	Col    int    // Column position (0-based) in terminal cells
+	Width  int    // Image width in terminal columns
+	Height int    // Image height in terminal rows
+	Escape string // Complete escape sequence (ready to emit to terminal)
+}
 
 // Model represents the rendering context for terminal content.
 type Model struct {
@@ -67,4 +80,64 @@ func (m Model) Render() (string, error) {
 	}
 
 	return result, nil
+}
+
+// RenderWithOverlays processes content and returns text with image overlays separated.
+//
+// For HalfBlock protocol: overlays is nil, text is identical to Render().
+// For native protocols (iTerm2, Kitty, Sixel): text contains blank placeholder
+// space where images should appear; overlays contains the escape sequences with
+// their absolute positions for out-of-band emission.
+func (m Model) RenderWithOverlays() (string, []ImageOverlay, error) {
+	proto := m.imageRenderer().Protocol()
+
+	// HalfBlock: images are inline character art, no overlays needed
+	if proto == termimage.HalfBlock {
+		text, err := m.Render()
+		return text, nil, err
+	}
+
+	// Native protocols: use deferred rendering and collect overlays
+	return m.renderWithOverlaysNative()
+}
+
+// renderWithOverlaysNative renders content using deferred image mode, returning
+// text with blank placeholders and separate overlay escape sequences.
+func (m Model) renderWithOverlaysNative() (string, []ImageOverlay, error) {
+	segments := extractSegments(m.Content)
+	renderer := m.imageRenderer()
+	proto := renderer.Protocol()
+
+	var result string
+	var allOverlays []ImageOverlay
+	currentRow := 0
+
+	for _, seg := range segments {
+		switch seg.Type {
+		case segmentMarkdown:
+			rendered, deferred, err := m.renderMarkdownDeferred(seg.Content, proto)
+			if err != nil {
+				return "", nil, err
+			}
+			for _, di := range deferred {
+				overlay := m.deferredToOverlay(di, currentRow, 0, renderer)
+				if overlay != nil {
+					allOverlays = append(allOverlays, *overlay)
+				}
+			}
+			result += rendered
+			currentRow += strings.Count(rendered, "\n")
+
+		case segmentHTML:
+			rendered, overlays, err := m.renderHTMLLayoutWithOverlays(seg.Content, currentRow)
+			if err != nil {
+				return "", nil, err
+			}
+			result += rendered
+			allOverlays = append(allOverlays, overlays...)
+			currentRow += strings.Count(rendered, "\n")
+		}
+	}
+
+	return result, allOverlays, nil
 }

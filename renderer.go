@@ -604,3 +604,193 @@ func applyShadowWithWidth(content string, shadowSize, maxWidth int) string {
 
 	return strings.Join(result, "\n")
 }
+
+// deferredToOverlay converts a deferredImage to an ImageOverlay by rendering
+// the image with the native protocol renderer.
+func (m Model) deferredToOverlay(di deferredImage, rowOffset, colOffset int, renderer termimage.Renderer) *ImageOverlay {
+	var rendered string
+	var err error
+	if cr, ok := renderer.(termimage.ConstrainedRenderer); ok {
+		rendered, err = cr.RenderConstrained(di.img, di.width, di.height)
+	} else {
+		rendered, err = renderer.Render(di.img, di.width)
+	}
+	if err != nil || rendered == "" {
+		return nil
+	}
+	return &ImageOverlay{
+		Row:    rowOffset + di.row,
+		Col:    colOffset,
+		Width:  di.width,
+		Height: di.height,
+		Escape: rendered,
+	}
+}
+
+// renderHTMLLayoutWithOverlays parses an HTML layout block and renders it,
+// collecting image overlays instead of appending cursor-based sequences inline.
+func (m Model) renderHTMLLayoutWithOverlays(htmlContent string, baseRow int) (string, []ImageOverlay, error) {
+	rows, err := parseGrid(htmlContent, m.Width)
+	if err != nil {
+		return "", nil, err
+	}
+
+	renderer := m.imageRenderer()
+	var result string
+	var allOverlays []ImageOverlay
+	currentRow := baseRow
+
+	for _, row := range rows {
+		rendered, overlays, err := m.renderRowWithOverlays(row, currentRow, renderer)
+		if err != nil {
+			return "", nil, err
+		}
+		result += rendered
+		allOverlays = append(allOverlays, overlays...)
+		currentRow += strings.Count(rendered, "\n")
+	}
+
+	return result, allOverlays, nil
+}
+
+// renderRowWithOverlays renders a grid row and collects image overlays
+// instead of appending cursor-based overlay sequences inline.
+func (m Model) renderRowWithOverlays(row gridRow, baseRow int, renderer termimage.Renderer) (string, []ImageOverlay, error) {
+	bp := detectBreakpoint(m.Width)
+	shouldStack := shouldStackRow(row, bp)
+	rowStyle := resolveStyle(row.Classes)
+
+	innerWidth := m.Width
+	if hasStyling(rowStyle) {
+		innerWidth -= rowStyle.MarginLeft + rowStyle.MarginRight
+		innerWidth -= rowStyle.PaddingLeft + rowStyle.PaddingRight
+		if rowStyle.Border || rowStyle.BorderLeft {
+			innerWidth -= 1
+		}
+		if rowStyle.Border || rowStyle.BorderRight {
+			innerWidth -= 1
+		}
+		if rowStyle.Shadow > 0 {
+			innerWidth -= rowStyle.Shadow
+		}
+		if innerWidth < 10 {
+			innerWidth = 10
+		}
+		resolveColumnWidths(&row, innerWidth, bp)
+	}
+
+	innerModel := m
+	innerModel.Width = innerWidth
+
+	proto := renderer.Protocol()
+	isMultiCol := !shouldStack && len(row.Columns) > 1
+	useOverlay := isMultiCol && proto != termimage.HalfBlock
+
+	renderedCols := make([]string, 0, len(row.Columns))
+	var colDeferreds []colOverlay
+
+	for i, col := range row.Columns {
+		if useOverlay {
+			rendered, deferred, err := innerModel.renderColumnDeferred(col, shouldStack, i)
+			if err != nil {
+				return "", nil, err
+			}
+			renderedCols = append(renderedCols, rendered)
+			if len(deferred) > 0 {
+				colDeferreds = append(colDeferreds, colOverlay{deferred: deferred, colIndex: i})
+			}
+		} else {
+			// Single column or stacked: render with deferred for overlay collection
+			colModel := Model{
+				Content:       col.Content,
+				Width:         col.Width,
+				RootPath:      m.RootPath,
+				ImageRenderer: m.ImageRenderer,
+			}
+			rendered, deferred, err := colModel.renderMarkdownDeferred(col.Content, proto)
+			if err != nil {
+				return "", nil, err
+			}
+			// Apply column styling
+			colStyle := resolveStyle(col.Classes)
+			if colStyle.BgColor != "" || colStyle.FgColor != "" {
+				rendered = persistColors(rendered, colStyle.BgColor, colStyle.FgColor)
+			}
+			totalWidth := col.Width
+			if shouldStack {
+				totalWidth = m.Width
+			}
+			styleWidth := totalWidth - colStyle.MarginLeft - colStyle.MarginRight
+			if colStyle.Border || colStyle.BorderLeft {
+				styleWidth -= 1
+			}
+			if colStyle.Border || colStyle.BorderRight {
+				styleWidth -= 1
+			}
+			if styleWidth < 10 {
+				styleWidth = 10
+			}
+			if colStyle.Shadow > 0 {
+				styleWidth -= colStyle.Shadow
+				if styleWidth < 10 {
+					styleWidth = 10
+				}
+			}
+			ls := applyStyle(colStyle, styleWidth)
+			styledOutput := ls.Render(rendered)
+			if colStyle.Shadow > 0 {
+				styledOutput = applyShadowIntelligent(styledOutput, colStyle.Shadow, styleWidth)
+			}
+			renderedCols = append(renderedCols, styledOutput)
+			if len(deferred) > 0 {
+				colDeferreds = append(colDeferreds, colOverlay{deferred: deferred, colIndex: i})
+			}
+		}
+	}
+
+	var output string
+	if shouldStack {
+		output = lipgloss.JoinVertical(lipgloss.Left, renderedCols...)
+	} else {
+		output = lipgloss.JoinHorizontal(lipgloss.Top, renderedCols...)
+	}
+
+	if hasStyling(rowStyle) {
+		rowStyleWidth := innerWidth
+		if rowStyle.BgColor != "" || rowStyle.FgColor != "" {
+			output = persistColors(output, rowStyle.BgColor, rowStyle.FgColor)
+		}
+		rowLipgloss := applyStyle(rowStyle, rowStyleWidth)
+		output = rowLipgloss.Render(output)
+	}
+
+	if rowStyle.Shadow > 0 {
+		shadowMaxWidth := innerWidth
+		output = applyShadowIntelligent(output, rowStyle.Shadow, shadowMaxWidth)
+	}
+
+	// Convert colDeferreds to ImageOverlay entries
+	var overlays []ImageOverlay
+	for _, ov := range colDeferreds {
+		xOffset := 0
+		for i := 0; i < ov.colIndex; i++ {
+			xOffset += row.Columns[i].Width
+		}
+
+		colStyle := resolveStyle(row.Columns[ov.colIndex].Classes)
+		leftOverhead := colStyle.MarginLeft + colStyle.PaddingLeft + 2
+		if colStyle.Border || colStyle.BorderLeft {
+			leftOverhead++
+		}
+
+		for _, di := range ov.deferred {
+			absCol := xOffset + leftOverhead
+			overlay := m.deferredToOverlay(di, baseRow, absCol, renderer)
+			if overlay != nil {
+				overlays = append(overlays, *overlay)
+			}
+		}
+	}
+
+	return output + "\n", overlays, nil
+}
