@@ -56,7 +56,7 @@ const kittyChunkSize = 4096
 
 // kittyBuildSequence constructs the full Kitty graphics protocol output.
 // cols and rows are optional display size constraints (0 = unset).
-// First chunk: \x1b_Ga=T,f=100,s=W,v=H[,c=C,r=R],m=1;<chunk>\x1b\\
+// First chunk: \x1b_Ga=T,f=100,q=2,s=W,v=H[,c=C,r=R],m=1;<chunk>\x1b\\
 // Middle chunks: \x1b_Gm=1;<chunk>\x1b\\
 // Last chunk: \x1b_Gm=0;<chunk>\x1b\\
 func kittyBuildSequence(payload string, w, h, cols, rows int) string {
@@ -69,7 +69,7 @@ func kittyBuildSequence(payload string, w, h, cols, rows int) string {
 		out.WriteString("\x1b_G")
 		if i == 0 {
 			// First chunk: include image metadata
-			fmt.Fprintf(&out, "a=T,f=100,s=%d,v=%d", w, h)
+			fmt.Fprintf(&out, "a=T,f=100,q=2,s=%d,v=%d", w, h)
 			if cols > 0 {
 				fmt.Fprintf(&out, ",c=%d", cols)
 			}
