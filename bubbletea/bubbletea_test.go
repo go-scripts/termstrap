@@ -1,5 +1,4 @@
 package bubbletea
-package bubbletea
 
 import (
 	"strings"

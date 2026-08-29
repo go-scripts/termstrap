@@ -2,6 +2,7 @@ package termstrap
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -35,15 +36,31 @@ func (m Model) renderHTMLLayout(htmlContent string) (string, error) {
 
 // renderRow renders a single grid row with its columns.
 func (m Model) renderRow(row gridRow) (string, error) {
+	proto := m.imageRenderer().Protocol()
+	rendered, deferred, err := m.renderRowDeferred(row, proto)
+	if err != nil {
+		return "", err
+	}
+
 	bp := detectBreakpoint(m.Width)
-
-	// Check if columns should stack (responsive collapse)
 	shouldStack := shouldStackRow(row, bp)
+	isMultiCol := !shouldStack && len(row.Columns) > 1
+	useOverlay := isMultiCol && proto != termimage.HalfBlock
 
+	if useOverlay && len(deferred) > 0 {
+		rendered = m.appendImageOverlays(rendered, deferred)
+	}
+
+	return rendered + "\n", nil
+}
+
+// renderRowDeferred renders a grid row without emitting cursor escape sequences,
+// returning clean text and all deferred images with their relative (row, col) within the row.
+func (m Model) renderRowDeferred(row gridRow, proto termimage.Protocol) (string, []deferredImage, error) {
+	bp := detectBreakpoint(m.Width)
+	shouldStack := shouldStackRow(row, bp)
 	rowStyle := resolveStyle(row.Classes)
 
-	// Calculate inner width available for columns when row has styling.
-	// Row-level padding, border, and shadow reduce the space available.
 	innerWidth := m.Width
 	if hasStyling(rowStyle) {
 		innerWidth -= rowStyle.MarginLeft + rowStyle.MarginRight
@@ -60,43 +77,174 @@ func (m Model) renderRow(row gridRow) (string, error) {
 		if innerWidth < 10 {
 			innerWidth = 10
 		}
-		// Re-resolve column widths to fit inside the row's inner space
 		resolveColumnWidths(&row, innerWidth, bp)
 	}
 
-	// Create a model scoped to the inner width for column rendering
 	innerModel := m
 	innerModel.Width = innerWidth
 
-	renderedCols := make([]string, 0, len(row.Columns))
+	type colRenderResult struct {
+		innerContent       string
+		colStyle           style
+		styleWidth         int
+		contentWidth       int
+		partialBorderWidth int
+		deferred           []deferredImage
+	}
 
-	// Use overlay mode when:
-	// 1. Multi-column horizontal layout (graphic blobs break lipgloss.JoinHorizontal)
-	// 2. A native graphics protocol is available (not halfblock)
-	proto := m.imageRenderer().Protocol()
+	colResults := make([]colRenderResult, len(row.Columns))
+	maxInnerLines := 0
+
 	isMultiCol := !shouldStack && len(row.Columns) > 1
 	useOverlay := isMultiCol && proto != termimage.HalfBlock
-	useHalfBlock := isMultiCol && !useOverlay
-
-	var allOverlays []colOverlay
 
 	for i, col := range row.Columns {
-		if useOverlay {
-			rendered, deferred, err := innerModel.renderColumnDeferred(col, shouldStack, i)
-			if err != nil {
-				return "", err
-			}
-			renderedCols = append(renderedCols, rendered)
-			if len(deferred) > 0 {
-				allOverlays = append(allOverlays, colOverlay{deferred: deferred, colIndex: i})
-			}
-		} else {
-			rendered, err := innerModel.renderColumn(col, shouldStack, useHalfBlock)
-			if err != nil {
-				return "", err
-			}
-			renderedCols = append(renderedCols, rendered)
+		colStyle := resolveStyle(col.Classes)
+		totalWidth := col.Width
+		if shouldStack {
+			totalWidth = m.Width
 		}
+
+		styleWidth := totalWidth - colStyle.MarginLeft - colStyle.MarginRight
+		if colStyle.Border || colStyle.BorderLeft {
+			styleWidth -= 1
+		}
+		if colStyle.Border || colStyle.BorderRight {
+			styleWidth -= 1
+		}
+		if styleWidth < 10 {
+			styleWidth = 10
+		}
+
+		partialBorderWidth := styleWidth
+
+		if colStyle.Shadow > 0 {
+			styleWidth -= colStyle.Shadow
+			if styleWidth < 10 {
+				styleWidth = 10
+			}
+		}
+
+		contentWidth := styleWidth - colStyle.PaddingLeft - colStyle.PaddingRight
+		if contentWidth < 10 {
+			contentWidth = 10
+		}
+
+		colModel := innerModel
+		colModel.Content = col.Content
+		colModel.Width = contentWidth
+
+		var innerRendered string
+		var deferred []deferredImage
+
+		if useOverlay {
+			rendered, defs, err := colModel.renderContentDeferred(col.Content, proto)
+			if err != nil {
+				return "", nil, err
+			}
+			innerRendered = rendered
+			deferred = defs
+		} else {
+			if m.ImageRenderer != nil {
+				colModel.ImageRenderer = m.ImageRenderer
+			}
+			rendered, err := colModel.Render()
+			if err != nil {
+				return "", nil, err
+			}
+			innerRendered = trimBlankLines(rendered)
+		}
+
+		lines := 0
+		if innerRendered != "" {
+			lines = strings.Count(innerRendered, "\n") + 1
+		}
+		if lines > maxInnerLines {
+			maxInnerLines = lines
+		}
+
+		colResults[i] = colRenderResult{
+			innerContent:       innerRendered,
+			colStyle:           colStyle,
+			styleWidth:         styleWidth,
+			contentWidth:       contentWidth,
+			partialBorderWidth: partialBorderWidth,
+			deferred:           deferred,
+		}
+	}
+
+	renderedCols := make([]string, 0, len(row.Columns))
+	var rowDeferred []deferredImage
+	currentXOffset := 0
+	currentYOffset := 0
+
+	for i, res := range colResults {
+		rendered := res.innerContent
+		if !shouldStack && len(row.Columns) > 1 && maxInnerLines > 0 {
+			lines := strings.Split(rendered, "\n")
+			for len(lines) < maxInnerLines {
+				lines = append(lines, "")
+			}
+			rendered = strings.Join(lines, "\n")
+		}
+
+		if res.colStyle.TextAlign == lipgloss.Center || res.colStyle.TextAlign == lipgloss.Right {
+			rendered = alignContent(rendered, res.colStyle.TextAlign)
+		}
+
+		if res.colStyle.BgColor != "" || res.colStyle.FgColor != "" {
+			rendered = persistColors(rendered, res.colStyle.BgColor, res.colStyle.FgColor)
+		}
+
+		ls := applyStyle(res.colStyle, res.styleWidth)
+		output := ls.Render(rendered)
+
+		topOverhead := res.colStyle.MarginTop + res.colStyle.PaddingTop
+		if res.colStyle.Border || res.colStyle.BorderTop {
+			topOverhead++
+		}
+
+		leftOverhead := res.colStyle.MarginLeft + res.colStyle.PaddingLeft
+		if res.colStyle.Border || res.colStyle.BorderLeft {
+			leftOverhead++
+		}
+
+		for _, di := range res.deferred {
+			innerColOffset := 0
+			if res.colStyle.TextAlign == lipgloss.Center {
+				innerColOffset = (res.contentWidth - di.width) / 2
+				if innerColOffset < 0 {
+					innerColOffset = 0
+				}
+			} else if res.colStyle.TextAlign == lipgloss.Right {
+				innerColOffset = res.contentWidth - di.width
+				if innerColOffset < 0 {
+					innerColOffset = 0
+				}
+			}
+
+			if shouldStack {
+				di.row += currentYOffset + topOverhead
+				di.col += leftOverhead + innerColOffset
+			} else {
+				di.row += topOverhead
+				di.col += currentXOffset + leftOverhead + innerColOffset
+			}
+			rowDeferred = append(rowDeferred, di)
+		}
+
+		if !res.colStyle.Border && (res.colStyle.BorderTop || res.colStyle.BorderBottom || res.colStyle.BorderLeft || res.colStyle.BorderRight) {
+			output = applyPartialBorders(output, res.partialBorderWidth, res.colStyle.BorderTop, res.colStyle.BorderBottom, res.colStyle.BorderLeft, res.colStyle.BorderRight)
+		}
+
+		if res.colStyle.Shadow > 0 {
+			shadowMaxWidth := res.styleWidth
+			output = applyShadowIntelligent(output, res.colStyle.Shadow, shadowMaxWidth)
+		}
+
+		renderedCols = append(renderedCols, output)
+		currentXOffset += row.Columns[i].Width
+		currentYOffset += strings.Count(output, "\n") + 1
 	}
 
 	var output string
@@ -108,10 +256,7 @@ func (m Model) renderRow(row gridRow) (string, error) {
 
 	// Apply row-level styling
 	if hasStyling(rowStyle) {
-		// The row style width is the inner content width (columns already fit within it)
 		rowStyleWidth := innerWidth
-
-		// Inject bg/fg into content before lipgloss wraps it
 		if rowStyle.BgColor != "" || rowStyle.FgColor != "" {
 			output = persistColors(output, rowStyle.BgColor, rowStyle.FgColor)
 		}
@@ -125,12 +270,74 @@ func (m Model) renderRow(row gridRow) (string, error) {
 		output = applyShadowIntelligent(output, rowStyle.Shadow, shadowMaxWidth)
 	}
 
-	// Append cursor-based native image overlays after the text layout
-	if len(allOverlays) > 0 {
-		output = m.appendImageOverlays(output, allOverlays, row.Columns)
+	return output, rowDeferred, nil
+}
+
+// renderHTMLLayoutDeferred parses an HTML layout block and renders it to ANSI text
+// without inline cursor overlays, collecting all deferred images.
+func (m Model) renderHTMLLayoutDeferred(htmlContent string, proto termimage.Protocol) (string, []deferredImage, error) {
+	rows, err := parseGrid(htmlContent, m.Width)
+	if err != nil {
+		return "", nil, err
 	}
 
-	return output + "\n", nil
+	var result string
+	var allDeferred []deferredImage
+	currentRow := 0
+
+	for _, row := range rows {
+		rendered, defs, err := m.renderRowDeferred(row, proto)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, di := range defs {
+			di.row += currentRow
+			allDeferred = append(allDeferred, di)
+		}
+		result += rendered + "\n"
+		currentRow += strings.Count(rendered, "\n") + 1
+	}
+
+	return result, allDeferred, nil
+}
+
+// renderContentDeferred renders markdown or HTML layout blocks, collecting
+// deferred images for later cursor overlay.
+func (m Model) renderContentDeferred(content string, proto termimage.Protocol) (string, []deferredImage, error) {
+	segments := extractSegments(content)
+	var renderedParts []string
+	var allDeferred []deferredImage
+	currentRow := 0
+
+	for _, seg := range segments {
+		switch seg.Type {
+		case segmentMarkdown:
+			rendered, deferred, err := m.renderMarkdownDeferred(seg.Content, proto)
+			if err != nil {
+				return "", nil, err
+			}
+			for _, di := range deferred {
+				di.row += currentRow
+				allDeferred = append(allDeferred, di)
+			}
+			renderedParts = append(renderedParts, rendered)
+			currentRow += strings.Count(rendered, "\n")
+
+		case segmentHTML:
+			rendered, deferred, err := m.renderHTMLLayoutDeferred(seg.Content, proto)
+			if err != nil {
+				return "", nil, err
+			}
+			for _, di := range deferred {
+				di.row += currentRow
+				allDeferred = append(allDeferred, di)
+			}
+			renderedParts = append(renderedParts, rendered)
+			currentRow += strings.Count(rendered, "\n")
+		}
+	}
+
+	return strings.Join(renderedParts, ""), allDeferred, nil
 }
 
 // renderColumn renders a single column with its content and styling.
@@ -175,16 +382,23 @@ func (m Model) renderColumn(col gridColumn, stacked bool, forceHalfBlock bool) (
 
 	// Render the column content using the full pipeline (extractSegments → renderHTMLLayout
 	// for nested rows, renderMarkdown for plain markdown). This enables recursive grid rendering.
-	colModel := Model{
-		Content:  col.Content,
-		Width:    contentWidth,
-		RootPath: m.RootPath,
-	}
+	colModel := m
+	colModel.Content = col.Content
+	colModel.Width = contentWidth
+
 	// Force halfblock for multi-column horizontal layouts to ensure
 	// borders align correctly (graphic protocols break lipgloss alignment)
 	if forceHalfBlock {
-		colModel.ImageRenderer = termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock))
-	} else {
+		opt := true
+		if m.OptimizeSequences != nil {
+			opt = *m.OptimizeSequences
+		}
+		colModel.ImageRenderer = termimage.NewRenderer(
+			termimage.WithProtocol(termimage.HalfBlock),
+			termimage.WithColorMode(m.ColorMode),
+			termimage.WithOptimizeSequences(opt),
+		)
+	} else if m.ImageRenderer != nil {
 		colModel.ImageRenderer = m.ImageRenderer
 	}
 	rendered, err := colModel.Render()
@@ -199,6 +413,10 @@ func (m Model) renderColumn(col gridColumn, stacked bool, forceHalfBlock bool) (
 	// ANSI resets from clearing lipgloss background styling
 	if colStyle.BgColor != "" || colStyle.FgColor != "" {
 		rendered = persistColors(rendered, colStyle.BgColor, colStyle.FgColor)
+	}
+
+	if colStyle.TextAlign == lipgloss.Center || colStyle.TextAlign == lipgloss.Right {
+		rendered = alignContent(rendered, colStyle.TextAlign)
 	}
 
 	// Apply column styling via lipgloss (padding, border, colors)
@@ -263,24 +481,22 @@ func (m Model) renderColumnDeferred(col gridColumn, stacked bool, colIndex int) 
 		contentWidth = 10
 	}
 
-	colModel := Model{
-		Content:       col.Content,
-		Width:         contentWidth,
-		RootPath:      m.RootPath,
-		ImageRenderer: m.ImageRenderer,
-	}
+	colModel := m
+	colModel.Content = col.Content
+	colModel.Width = contentWidth
 
 	proto := m.imageRenderer().Protocol()
-	rendered, deferred, err := colModel.renderMarkdownDeferred(col.Content, proto)
+	rendered, deferred, err := colModel.renderContentDeferred(col.Content, proto)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// trimBlankLines is already called inside renderMarkdownDeferred
-	// before blank placeholders are inserted, so don't call it again here.
-
 	if colStyle.BgColor != "" || colStyle.FgColor != "" {
 		rendered = persistColors(rendered, colStyle.BgColor, colStyle.FgColor)
+	}
+
+	if colStyle.TextAlign == lipgloss.Center || colStyle.TextAlign == lipgloss.Right {
+		rendered = alignContent(rendered, colStyle.TextAlign)
 	}
 
 	ls := applyStyle(colStyle, styleWidth)
@@ -308,10 +524,78 @@ func (m Model) renderColumnDeferred(col gridColumn, stacked bool, colIndex int) 
 	return output, deferred, nil
 }
 
+var trailingANSIWhitespace = regexp.MustCompile(`(?:\s|\x1b\[[0-9;]*m)+$`)
+
+// trimLineForAlign strips leading/trailing whitespace and trailing ANSI fill sequences
+// from a line so Lipgloss can center/right-align text properly.
+// It ensures that ANSI reset codes (\x1b[0m) are preserved so colors never bleed.
+func trimLineForAlign(l string) string {
+	plain := stripANSI(l)
+	if plain == "" {
+		if strings.Contains(l, "\x1b") {
+			return ""
+		}
+		return l
+	}
+
+	// Check if line contains color escapes or ended with reset
+	hadReset := strings.HasSuffix(l, "\x1b[0m")
+	hasColor := strings.Contains(l, "\x1b[38;") || strings.Contains(l, "\x1b[48;")
+
+	// Strip trailing whitespace and reset/color codes
+	l = trailingANSIWhitespace.ReplaceAllString(l, "")
+
+	// Strip leading whitespace while preserving formatting ANSI codes
+	var buf strings.Builder
+	inLeading := true
+	for i := 0; i < len(l); i++ {
+		if inLeading && (l[i] == ' ' || l[i] == '\t') {
+			continue
+		}
+		if inLeading && l[i] == '\x1b' {
+			end := i + 1
+			for end < len(l) && l[end] != 'm' && l[end] != 'G' && l[end] != 'K' {
+				end++
+			}
+			if end < len(l) {
+				end++
+			}
+			seq := l[i:end]
+			if seq != "\x1b[0m" {
+				buf.WriteString(seq)
+			}
+			i = end - 1
+			continue
+		}
+		inLeading = false
+		buf.WriteByte(l[i])
+	}
+
+	result := buf.String()
+	if (hadReset || hasColor) && !strings.HasSuffix(result, "\x1b[0m") {
+		result += "\x1b[0m"
+	}
+
+	return result
+}
+
+// alignContent trims leading and trailing spaces from non-blank lines for Center/Right alignment
+// so Lipgloss can center/right-align properly without Glamour's default margins interfering.
+func alignContent(content string, align lipgloss.Position) string {
+	if align != lipgloss.Center && align != lipgloss.Right {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	for i, l := range lines {
+		lines[i] = trimLineForAlign(l)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // appendImageOverlays appends cursor-based native protocol image renders
 // after the composed row output. Each image is painted at its calculated
 // position using ANSI cursor movement (CUU/CHA) and the native protocol.
-func (m Model) appendImageOverlays(output string, overlays []colOverlay, columns []gridColumn) string {
+func (m Model) appendImageOverlays(output string, deferred []deferredImage) string {
 	renderer := m.imageRenderer()
 
 	totalLines := strings.Count(output, "\n")
@@ -319,58 +603,42 @@ func (m Model) appendImageOverlays(output string, overlays []colOverlay, columns
 	var buf strings.Builder
 	buf.WriteString(output)
 
-	for _, ov := range overlays {
-		// Calculate X offset: sum of preceding column widths
-		xOffset := 0
-		for i := 0; i < ov.colIndex; i++ {
-			xOffset += columns[i].Width
+	for _, di := range deferred {
+		absCol := di.col
+		absRow := di.row
+
+		// Move cursor up from the end of the output
+		linesUp := totalLines - absRow
+		if linesUp > 0 {
+			fmt.Fprintf(&buf, "\x1b[%dA", linesUp)
 		}
 
-		// Add per-column left overhead (margin + border + padding + image indent)
-		colStyle := resolveStyle(columns[ov.colIndex].Classes)
-		leftOverhead := colStyle.MarginLeft + colStyle.PaddingLeft + 2 // +2 for addImagePadding indent
-		if colStyle.Border || colStyle.BorderLeft {
-			leftOverhead++
+		// Move cursor to the image column (1-based CHA)
+		fmt.Fprintf(&buf, "\x1b[%dG", absCol+1)
+
+		// Render image with height constraint to prevent overflow.
+		// ConstrainedRenderer tells the terminal to fit the image within
+		// the exact width×height cell box, preventing border overflow.
+		var rendered string
+		var err error
+		if cr, ok := renderer.(termimage.ConstrainedRenderer); ok {
+			rendered, err = cr.RenderConstrained(di.img, di.width, di.height)
+		} else {
+			rendered, err = renderer.Render(di.img, di.width)
+		}
+		if err == nil {
+			buf.WriteString(rendered)
 		}
 
-		for _, di := range ov.deferred {
-			// Absolute position in the composed output
-			absCol := xOffset + leftOverhead
-			absRow := di.row
-
-			// Move cursor up from the end of the output
-			linesUp := totalLines - absRow
-			if linesUp > 0 {
-				fmt.Fprintf(&buf, "\x1b[%dA", linesUp)
-			}
-
-			// Move cursor to the image column (1-based CHA)
-			fmt.Fprintf(&buf, "\x1b[%dG", absCol+1)
-
-			// Render image with height constraint to prevent overflow.
-			// ConstrainedRenderer tells the terminal to fit the image within
-			// the exact width×height cell box, preventing border overflow.
-			var rendered string
-			var err error
-			if cr, ok := renderer.(termimage.ConstrainedRenderer); ok {
-				rendered, err = cr.RenderConstrained(di.img, di.width, di.height)
-			} else {
-				rendered, err = renderer.Render(di.img, di.width)
-			}
-			if err == nil {
-				buf.WriteString(rendered)
-			}
-
-			// Move cursor back down to the end of the output.
-			// After native image render, cursor is at (absRow + height).
-			linesDown := totalLines - absRow - di.height
-			if linesDown > 0 {
-				fmt.Fprintf(&buf, "\x1b[%dB", linesDown)
-			}
-
-			// Reset to column 1
-			buf.WriteString("\x1b[1G")
+		// Move cursor back down to the end of the output.
+		// After native image render, cursor is at (absRow + height).
+		linesDown := totalLines - absRow - di.height
+		if linesDown > 0 {
+			fmt.Fprintf(&buf, "\x1b[%dB", linesDown)
 		}
+
+		// Reset to column 1
+		buf.WriteString("\x1b[1G")
 	}
 
 	return buf.String()
@@ -471,28 +739,23 @@ func applyShadowIntelligent(content string, shadowSize, maxWidth int) string {
 	return strings.Join(result, "\n")
 }
 
-// shadowMetrics pre-calculates shadow rendering information.
+// shadowMetrics holds the calculations for shadow rendering
 type shadowMetrics struct {
-	ContentWidth      int  // Width of the actual visible content
-	ShadowWidth       int  // Width of shadow on the right side
-	BottomShadowWidth int  // Width of bottom shadow
-	WillOverflow      bool // True if shadow would exceed maxWidth
-	AdjustedShadow    int  // Adjusted shadow size if it would overflow
-	TotalWidth        int  // Total width including shadow (content + shadow width)
+	ContentWidth      int  // width of content (longest line)
+	ShadowWidth       int  // requested shadow size
+	AdjustedShadow    int  // actual shadow size to render (reduced if overflow)
+	WillOverflow      bool // true if requested shadow exceeds maxWidth
+	BottomShadowWidth int  // width of bottom shadow line
+	TotalWidth        int  // final line width with shadow
 }
 
-// calculateShadowMetrics pre-calculates shadow dimensions for a given content and available width.
-// contentWidth: width of the actual content (without shadow)
-// shadowSize: requested shadow size (1=small, 2=medium, 3=large)
-// maxWidth: maximum available width in the terminal
-// Returns shadowMetrics with overflow detection and adjusted size if needed.
+// calculateShadowMetrics computes how a shadow should be rendered without overflowing maxWidth
 func calculateShadowMetrics(contentWidth, shadowSize, maxWidth int) shadowMetrics {
-	metrics := shadowMetrics{
-		ContentWidth: contentWidth,
-		ShadowWidth:  shadowSize,
-	}
+	var metrics shadowMetrics
+	metrics.ContentWidth = contentWidth
+	metrics.ShadowWidth = shadowSize
 
-	// No width constraint: use requested shadow size as-is
+	// If no maxWidth constraint, use full shadow size
 	if maxWidth <= 0 {
 		metrics.WillOverflow = false
 		metrics.AdjustedShadow = shadowSize
@@ -656,141 +919,19 @@ func (m Model) renderHTMLLayoutWithOverlays(htmlContent string, baseRow int) (st
 // renderRowWithOverlays renders a grid row and collects image overlays
 // instead of appending cursor-based overlay sequences inline.
 func (m Model) renderRowWithOverlays(row gridRow, baseRow int, renderer termimage.Renderer) (string, []ImageOverlay, error) {
-	bp := detectBreakpoint(m.Width)
-	shouldStack := shouldStackRow(row, bp)
-	rowStyle := resolveStyle(row.Classes)
-
-	innerWidth := m.Width
-	if hasStyling(rowStyle) {
-		innerWidth -= rowStyle.MarginLeft + rowStyle.MarginRight
-		innerWidth -= rowStyle.PaddingLeft + rowStyle.PaddingRight
-		if rowStyle.Border || rowStyle.BorderLeft {
-			innerWidth -= 1
-		}
-		if rowStyle.Border || rowStyle.BorderRight {
-			innerWidth -= 1
-		}
-		if rowStyle.Shadow > 0 {
-			innerWidth -= rowStyle.Shadow
-		}
-		if innerWidth < 10 {
-			innerWidth = 10
-		}
-		resolveColumnWidths(&row, innerWidth, bp)
-	}
-
-	innerModel := m
-	innerModel.Width = innerWidth
-
 	proto := renderer.Protocol()
-	isMultiCol := !shouldStack && len(row.Columns) > 1
-	useOverlay := isMultiCol && proto != termimage.HalfBlock
-
-	renderedCols := make([]string, 0, len(row.Columns))
-	var colDeferreds []colOverlay
-
-	for i, col := range row.Columns {
-		if useOverlay {
-			rendered, deferred, err := innerModel.renderColumnDeferred(col, shouldStack, i)
-			if err != nil {
-				return "", nil, err
-			}
-			renderedCols = append(renderedCols, rendered)
-			if len(deferred) > 0 {
-				colDeferreds = append(colDeferreds, colOverlay{deferred: deferred, colIndex: i})
-			}
-		} else {
-			// Single column or stacked: render with deferred for overlay collection
-			colModel := Model{
-				Content:       col.Content,
-				Width:         col.Width,
-				RootPath:      m.RootPath,
-				ImageRenderer: m.ImageRenderer,
-			}
-			rendered, deferred, err := colModel.renderMarkdownDeferred(col.Content, proto)
-			if err != nil {
-				return "", nil, err
-			}
-			// Apply column styling
-			colStyle := resolveStyle(col.Classes)
-			if colStyle.BgColor != "" || colStyle.FgColor != "" {
-				rendered = persistColors(rendered, colStyle.BgColor, colStyle.FgColor)
-			}
-			totalWidth := col.Width
-			if shouldStack {
-				totalWidth = m.Width
-			}
-			styleWidth := totalWidth - colStyle.MarginLeft - colStyle.MarginRight
-			if colStyle.Border || colStyle.BorderLeft {
-				styleWidth -= 1
-			}
-			if colStyle.Border || colStyle.BorderRight {
-				styleWidth -= 1
-			}
-			if styleWidth < 10 {
-				styleWidth = 10
-			}
-			if colStyle.Shadow > 0 {
-				styleWidth -= colStyle.Shadow
-				if styleWidth < 10 {
-					styleWidth = 10
-				}
-			}
-			ls := applyStyle(colStyle, styleWidth)
-			styledOutput := ls.Render(rendered)
-			if colStyle.Shadow > 0 {
-				styledOutput = applyShadowIntelligent(styledOutput, colStyle.Shadow, styleWidth)
-			}
-			renderedCols = append(renderedCols, styledOutput)
-			if len(deferred) > 0 {
-				colDeferreds = append(colDeferreds, colOverlay{deferred: deferred, colIndex: i})
-			}
-		}
+	rendered, defs, err := m.renderRowDeferred(row, proto)
+	if err != nil {
+		return "", nil, err
 	}
 
-	var output string
-	if shouldStack {
-		output = lipgloss.JoinVertical(lipgloss.Left, renderedCols...)
-	} else {
-		output = lipgloss.JoinHorizontal(lipgloss.Top, renderedCols...)
-	}
-
-	if hasStyling(rowStyle) {
-		rowStyleWidth := innerWidth
-		if rowStyle.BgColor != "" || rowStyle.FgColor != "" {
-			output = persistColors(output, rowStyle.BgColor, rowStyle.FgColor)
-		}
-		rowLipgloss := applyStyle(rowStyle, rowStyleWidth)
-		output = rowLipgloss.Render(output)
-	}
-
-	if rowStyle.Shadow > 0 {
-		shadowMaxWidth := innerWidth
-		output = applyShadowIntelligent(output, rowStyle.Shadow, shadowMaxWidth)
-	}
-
-	// Convert colDeferreds to ImageOverlay entries
 	var overlays []ImageOverlay
-	for _, ov := range colDeferreds {
-		xOffset := 0
-		for i := 0; i < ov.colIndex; i++ {
-			xOffset += row.Columns[i].Width
-		}
-
-		colStyle := resolveStyle(row.Columns[ov.colIndex].Classes)
-		leftOverhead := colStyle.MarginLeft + colStyle.PaddingLeft + 2
-		if colStyle.Border || colStyle.BorderLeft {
-			leftOverhead++
-		}
-
-		for _, di := range ov.deferred {
-			absCol := xOffset + leftOverhead
-			overlay := m.deferredToOverlay(di, baseRow, absCol, renderer)
-			if overlay != nil {
-				overlays = append(overlays, *overlay)
-			}
+	for _, di := range defs {
+		overlay := m.deferredToOverlay(di, baseRow, di.col, renderer)
+		if overlay != nil {
+			overlays = append(overlays, *overlay)
 		}
 	}
 
-	return output + "\n", overlays, nil
+	return rendered, overlays, nil
 }
