@@ -86,12 +86,28 @@ type options struct {
 	protocol     *Protocol // nil = auto-detect
 	output       io.Writer // terminal output (for termenv detection)
 	capabilities *Capabilities
+	colorMode    ColorMode
+	optimize     bool
 }
 
 // WithProtocol forces a specific graphics protocol instead of auto-detecting.
 func WithProtocol(p Protocol) Option {
 	return func(o *options) {
 		o.protocol = &p
+	}
+}
+
+// WithColorMode specifies the color depth (TrueColor, 256 colors, 16 colors) for half-block rendering.
+func WithColorMode(cm ColorMode) Option {
+	return func(o *options) {
+		o.colorMode = cm
+	}
+}
+
+// WithOptimizeSequences controls whether consecutive ANSI escape sequences with matching colors are deduplicated.
+func WithOptimizeSequences(opt bool) Option {
+	return func(o *options) {
+		o.optimize = opt
 	}
 }
 
@@ -114,7 +130,9 @@ func WithCapabilities(caps Capabilities) Option {
 // It auto-detects terminal capabilities unless overridden via options.
 func NewRenderer(opts ...Option) Renderer {
 	o := &options{
-		output: os.Stdout,
+		output:    os.Stdout,
+		colorMode: ColorModeTrueColor,
+		optimize:  true,
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -138,6 +156,6 @@ func NewRenderer(opts ...Option) Renderer {
 	case Sixel:
 		return &sixelRenderer{}
 	default:
-		return &halfBlockRenderer{}
+		return NewHalfBlockRenderer(o.colorMode, o.optimize)
 	}
 }
