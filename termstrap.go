@@ -14,6 +14,7 @@ package termstrap
 
 import (
 	"strings"
+	"time"
 
 	termimage "github.com/go-scripts/termstrap/image"
 )
@@ -39,6 +40,30 @@ type Model struct {
 	// If nil, a renderer is auto-detected on first use based on
 	// terminal capabilities (Kitty → iTerm2 → Sixel → half-block).
 	ImageRenderer termimage.Renderer
+
+	// MaxImageWidth caps image width in terminal columns (0 = unbounded / default).
+	MaxImageWidth int
+
+	// ColorMode specifies the color depth (ColorModeTrueColor, ColorMode256, ColorMode16).
+	// Defaults to ColorModeTrueColor.
+	ColorMode termimage.ColorMode
+
+	// OptimizeSequences controls whether adjacent matching ANSI color sequences are deduplicated.
+	// Nil defaults to true.
+	OptimizeSequences *bool
+
+	// DisableImages replaces images with text representation ([Image: alt](url)).
+	DisableImages bool
+
+	// CachePolicy configures image and ANSI caching (CacheDefault, CacheReload, CacheNoStore).
+	CachePolicy CachePolicy
+
+	// CacheTTL sets the custom cache TTL duration (0 = default 2 hours).
+	CacheTTL time.Duration
+
+	// ImageCache allows injecting a custom ImageCache implementation.
+	// If nil, DefaultCache() is used.
+	ImageCache ImageCache
 }
 
 // imageRenderer returns the configured renderer, or auto-detects one
@@ -47,7 +72,25 @@ func (m Model) imageRenderer() termimage.Renderer {
 	if m.ImageRenderer != nil {
 		return m.ImageRenderer
 	}
-	return termimage.NewRenderer()
+	opt := true
+	if m.OptimizeSequences != nil {
+		opt = *m.OptimizeSequences
+	}
+	return termimage.NewRenderer(
+		termimage.WithColorMode(m.ColorMode),
+		termimage.WithOptimizeSequences(opt),
+	)
+}
+
+// effectiveCache returns the active image cache based on CachePolicy and ImageCache field.
+func (m Model) effectiveCache() ImageCache {
+	if m.CachePolicy == CacheNoStore {
+		return NoopCache{}
+	}
+	if m.ImageCache != nil {
+		return m.ImageCache
+	}
+	return DefaultCache()
 }
 
 // Render processes the content through the full rendering pipeline:
