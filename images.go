@@ -255,7 +255,10 @@ func getAttr(attrs map[string]string, keys ...string) (string, bool) {
 // using the auto-detected (or user-configured) graphics protocol.
 func (m Model) renderImages(content string, imageMap map[string]imageInfo) string {
 	for placeholder, img := range imageMap {
-		imgWidth := m.Width / 2
+		imgWidth := m.Width
+		if m.Width > 60 {
+			imgWidth = m.Width / 2
+		}
 		if img.width > 0 {
 			imgWidth = img.width
 		}
@@ -295,7 +298,10 @@ func (m Model) renderImagesDeferred(content string, imageMap map[string]imageInf
 	var deferred []deferredImage
 
 	for placeholder, info := range imageMap {
-		imgWidth := m.Width / 2
+		imgWidth := m.Width
+		if m.Width > 60 {
+			imgWidth = m.Width / 2
+		}
 		if info.width > 0 {
 			imgWidth = info.width
 		}
