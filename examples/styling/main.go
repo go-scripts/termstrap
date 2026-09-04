@@ -1,5 +1,5 @@
-// Example: styling — Demonstrates all CSS-like styling classes supported
-// by termstrap: padding, margin, text alignment, borders, colors, and bold.
+// Example: styling — Demonstrates utility classes for padding, margin,
+// text alignment, colors, and font styles.
 //
 // Usage:
 //
@@ -21,187 +21,136 @@ func main() {
 		width = w
 	}
 
-	content := `# Styling Classes Demo
+	content := `<h1>Styling Classes Demo</h1>
 
-## 1. Padding Variants
+<h2>1. Padding Variants</h2>
 
 <div class="row">
   <div class="col-md-3 border p-0">
-
-**p-0** (none)
-
+    <div><b>p-0</b> (none)</div>
   </div>
   <div class="col-md-3 border p-1">
-
-**p-1** (small)
-
+    <div><b>p-1</b> (small)</div>
   </div>
   <div class="col-md-3 border p-2">
-
-**p-2** (medium)
-
+    <div><b>p-2</b> (medium)</div>
   </div>
   <div class="col-md-3 border p-3">
-
-**p-3** (large)
-
+    <div><b>p-3</b> (large)</div>
   </div>
 </div>
 
----
+<hr />
 
-## 2. Directional Padding
+<h2>2. Directional Padding</h2>
 
 <div class="row">
   <div class="col-md-4 border px-3">
-
-**px-3** — horizontal padding only
-
+    <div><b>px-3</b> — horizontal padding only</div>
   </div>
   <div class="col-md-4 border py-2">
-
-**py-2** — vertical padding only
-
+    <div><b>py-2</b> — vertical padding only</div>
   </div>
   <div class="col-md-4 border pt-2 pb-1 ps-2 pe-1">
-
-**pt-2 pb-1 ps-2 pe-1** — mixed
-
+    <div><b>pt-2 pb-1 ps-2 pe-1</b> — mixed</div>
   </div>
 </div>
 
----
+<hr />
 
-## 3. Margin
+<h2>3. Margin</h2>
 
 <div class="row">
   <div class="col-md-4 border m-1 p-1">
-
-**m-1** — small margin
-
+    <div><b>m-1</b> — small margin</div>
   </div>
   <div class="col-md-4 border m-2 p-1">
-
-**m-2** — medium margin
-
+    <div><b>m-2</b> — medium margin</div>
   </div>
   <div class="col-md-4 border mx-2 my-1 p-1">
-
-**mx-2 my-1** — directional
-
+    <div><b>mx-2 my-1</b> — directional</div>
   </div>
 </div>
 
----
+<hr />
 
-## 4. Text Alignment
+<h2>4. Text Alignment</h2>
 
 <div class="row">
   <div class="col-md-4 border p-1 text-start">
-
-**text-start**
-
-Left aligned text content.
-
+    <div><b>text-start</b></div>
+    <p>Left aligned text content.</p>
   </div>
   <div class="col-md-4 border p-1 text-center">
-
-**text-center**
-
-Centered text content.
-
+    <div><b>text-center</b></div>
+    <p>Centered text content.</p>
   </div>
   <div class="col-md-4 border p-1 text-end">
-
-**text-end**
-
-Right aligned text content.
-
+    <div><b>text-end</b></div>
+    <p>Right aligned text content.</p>
   </div>
 </div>
 
----
+<hr />
 
-## 5. Background & Text Colors
+<h2>5. Background &amp; Text Colors</h2>
 
 <div class="row">
   <div class="col-md-3 bg-primary text-white p-2">
-
-**Primary**
-
+    <div><b>Primary</b></div>
   </div>
   <div class="col-md-3 bg-success text-white p-2">
-
-**Success**
-
+    <div><b>Success</b></div>
   </div>
   <div class="col-md-3 bg-warning text-dark p-2">
-
-**Warning**
-
+    <div><b>Warning</b></div>
   </div>
   <div class="col-md-3 bg-danger text-white p-2">
-
-**Danger**
-
+    <div><b>Danger</b></div>
   </div>
 </div>
 
-<div class="row">
+<div class="row mt-1">
   <div class="col-md-3 bg-info text-dark p-2">
-
-**Info**
-
+    <div><b>Info</b></div>
   </div>
   <div class="col-md-3 bg-secondary text-white p-2">
-
-**Secondary**
-
+    <div><b>Secondary</b></div>
   </div>
-  <div class="col-md-3 bg-dark text-light p-2">
-
-**Dark**
-
+  <div class="col-md-3 bg-dark text-white p-2">
+    <div><b>Dark</b></div>
   </div>
   <div class="col-md-3 bg-light text-dark p-2">
-
-**Light**
-
+    <div><b>Light</b></div>
   </div>
 </div>
 
----
+<hr />
 
-## 6. Bold Text
+<h2>6. Bold Text</h2>
 
 <div class="row">
-  <div class="col-md-6 border p-1 fw-bold">
-
-**fw-bold** — Bold text via class
-
+  <div class="col-md-6 border p-1">
+    <div class="fw-bold"><b>fw-bold</b> — Bold text via class</div>
   </div>
-  <div class="col-md-6 border p-1 text-bold">
-
-**text-bold** — Also bold text
-
+  <div class="col-md-6 border p-1">
+    <div class="text-bold"><b>text-bold</b> — Also bold text</div>
   </div>
 </div>
 
----
+<hr />
 
-## 7. Combined Styling
+<h2>7. Combined Styling</h2>
 
 <div class="row">
-  <div class="col-md-12 bg-dark text-white p-3 border rounded fw-bold text-center">
-
-Full-width card with **bg-dark**, **text-white**, **p-3**, **border**, **rounded**, **fw-bold**, and **text-center** combined.
-
+  <div class="col-12 bg-dark text-white p-3 border rounded fw-bold text-center">
+    Full-width card with <b>bg-dark</b>, <b>text-white</b>, <b>p-3</b>, <b>border</b>, <b>rounded</b>, <b>fw-bold</b>, and <b>text-center</b> combined.
   </div>
 </div>
 `
 
 	m := termstrap.Model{
-		Content:       content,
+		HTML:          content,
 		Width:         width,
 		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
 	}

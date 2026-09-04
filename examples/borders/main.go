@@ -22,142 +22,100 @@ func main() {
 		width = w
 	}
 
-	content := `# Border Variants Demo
+	content := `<h1>Border Variants Demo</h1>
 
-## 1. Full Borders
+<h2>1. Full Borders</h2>
 
 <div class="row">
   <div class="col-md-6 border p-1">
-
-**border** — Normal border
-
-All four sides with square corners.
-
+    <div><b>border</b> — Normal border</div>
+    <p>All four sides with square corners.</p>
   </div>
   <div class="col-md-6 border rounded p-1">
-
-**border rounded** — Rounded corners
-
-All four sides with rounded corners.
-
+    <div><b>border rounded</b> — Rounded corners</div>
+    <p>All four sides with rounded corners.</p>
   </div>
 </div>
 
----
+<hr />
 
-## 2. Partial Borders — Single Side
+<h2>2. Partial Borders — Single Side</h2>
 
 <div class="row">
   <div class="col-md-3 border-top p-1">
-
-**border-top**
-
-Top only
-
+    <div><b>border-top</b></div>
+    <p>Top only</p>
   </div>
   <div class="col-md-3 border-bottom p-1">
-
-**border-bottom**
-
-Bottom only
-
+    <div><b>border-bottom</b></div>
+    <p>Bottom only</p>
   </div>
   <div class="col-md-3 border-left p-1">
-
-**border-left**
-
-Left only
-
+    <div><b>border-left</b></div>
+    <p>Left only</p>
   </div>
   <div class="col-md-3 border-right p-1">
-
-**border-right**
-
-Right only
-
+    <div><b>border-right</b></div>
+    <p>Right only</p>
   </div>
 </div>
 
----
+<hr />
 
-## 3. Partial Borders — Combinations
+<h2>3. Partial Borders — Combinations</h2>
 
 <div class="row">
   <div class="col-md-4 border-top border-bottom p-1">
-
-**Top + Bottom**
-
-Horizontal lines only.
-
+    <div><b>Top + Bottom</b></div>
+    <p>Horizontal lines only.</p>
   </div>
   <div class="col-md-4 border-left border-right p-1">
-
-**Left + Right**
-
-Vertical sides only.
-
+    <div><b>Left + Right</b></div>
+    <p>Vertical sides only.</p>
   </div>
   <div class="col-md-4 border-top border-left border-right p-1">
-
-**Top + Left + Right**
-
-Open bottom.
-
+    <div><b>Top + Left + Right</b></div>
+    <p>Open bottom.</p>
   </div>
 </div>
 
----
+<hr />
 
-## 4. Borders with Colors
+<h2>4. Borders with Colors</h2>
 
 <div class="row">
   <div class="col-md-4 border rounded bg-dark text-white p-2">
-
-**Dark with border**
-
-Border visible on dark background.
-
+    <div><b>Dark with border</b></div>
+    <p>Border visible on dark background.</p>
   </div>
   <div class="col-md-4 border-left bg-primary text-white p-2">
-
-**Primary with left border**
-
-Accent line on the left.
-
+    <div><b>Primary with left border</b></div>
+    <p>Accent line on the left.</p>
   </div>
   <div class="col-md-4 border-bottom bg-success text-white p-2">
-
-**Success with bottom border**
-
-Underline accent.
-
+    <div><b>Success with bottom border</b></div>
+    <p>Underline accent.</p>
   </div>
 </div>
 
----
+<hr />
 
-## 5. Borders with Shadows
+<h2>5. Borders with Shadows</h2>
 
 <div class="row">
   <div class="col-md-6 border rounded shadow-sm p-2">
-
-**border + shadow-sm**
-
-Light shadow beneath the border.
-
+    <div><b>border + shadow-sm</b></div>
+    <p>Light shadow beneath the border.</p>
   </div>
   <div class="col-md-6 border rounded shadow-lg p-2">
-
-**border + shadow-lg**
-
-Strong shadow beneath the border.
-
+    <div><b>border + shadow-lg</b></div>
+    <p>Strong shadow beneath the border.</p>
   </div>
 </div>
 `
 
 	m := termstrap.Model{
-		Content:       content,
+		HTML:          content,
 		Width:         width,
 		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
 	}

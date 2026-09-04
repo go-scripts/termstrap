@@ -1,6 +1,5 @@
-// Example: nested-no-md — Demonstrates nested grid rows with plain col-* classes
-// (no breakpoint suffix like -md) to ensure content displays at all screen sizes.
-// Columns stack vertically on narrow screens, showing all content.
+// Example: nested-no-md — Demonstrates deeply nested grid rows using
+// plain col-* classes.
 //
 // Usage:
 //
@@ -17,113 +16,83 @@ import (
 )
 
 func main() {
-	caps := termimage.Detect()
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
 	}
 
-	fmt.Printf("Protocol: %s | Width: %d\n\n", caps.Protocol, width)
+	content := `<h1>Nested Rows with Plain col-* Classes</h1>
 
-	content := `# Nested Rows with Plain col-* Classes
+<h2>Layout: row → col-5 (contains nested row with col-6 / col-6) → col-3 → col-4</h2>
 
-## Layout: row → col-5 (contains nested row with col-6 / col-6) → col-3 → col-4
-
-All content displays regardless of breakpoint, stacking vertically when needed.
+<p>All content displays regardless of breakpoint, stacking vertically when needed.</p>
 
 <div class="row">
   <div class="col-5 border p-1 bg-light">
-
-### Container Left (col-5)
-
-<div class="row">
-  <div class="col-6 border p-1">
-
-**Nested Left**
-
-Content in nested col-6
-
-  </div>
-  <div class="col-6 border p-1">
-
-**Nested Right**
-
-Another nested col-6
-
-  </div>
-</div>
-
+    <h3>Container Left (col-5)</h3>
+    <div class="row">
+      <div class="col-6 border p-1">
+        <div><b>Nested Left</b></div>
+        <p>Content in nested col-6</p>
+      </div>
+      <div class="col-6 border p-1">
+        <div><b>Nested Right</b></div>
+        <p>Another nested col-6</p>
+      </div>
+    </div>
   </div>
   <div class="col-3 border p-1 bg-secondary text-white">
-
-### Middle (col-3)
-
-Right-side content area.
-
+    <h3>Middle (col-3)</h3>
+    <p>Right-side content area.</p>
   </div>
   <div class="col-4 border p-1">
-
-### Right (col-4)
-
-Final column content.
-
+    <h3>Right (col-4)</h3>
+    <p>Final column content.</p>
   </div>
 </div>
 
----
+<hr />
 
-## Deeper Nesting (3 levels)
+<h2>Deeper Nesting (3 levels)</h2>
 
 <div class="row">
   <div class="col-12 border rounded p-1 bg-primary text-white">
-
-### Level 1 Full Width
-
-<div class="row">
-  <div class="col-6 border p-1 bg-dark">
-
-**Level 2 Left (col-6)**
-
-<div class="row">
-  <div class="col-6 border p-1 bg-info">
-
-Level 3a
-
-  </div>
-  <div class="col-6 border p-1 bg-warning">
-
-Level 3b
-
-  </div>
-</div>
-
-  </div>
-  <div class="col-6 border p-1 bg-success text-white">
-
-**Level 2 Right (col-6)**
-
-No further nesting here.
-
+    <h3>Level 1 Full Width</h3>
+    <div class="row">
+      <div class="col-6 border p-1 bg-dark">
+        <div><b>Level 2 Left (col-6)</b></div>
+        <div class="row">
+          <div class="col-6 border p-1 bg-info">
+            <div>Level 3a</div>
+          </div>
+          <div class="col-6 border p-1 bg-warning">
+            <div>Level 3b</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 border p-1 bg-success text-white">
+        <div><b>Level 2 Right (col-6)</b></div>
+        <p>No further nesting here.</p>
+      </div>
+    </div>
   </div>
 </div>
 
-  </div>
-</div>
+<hr />
 
----
-
-Text after nested layout.
+<p>Text after nested layout.</p>
 `
 
 	m := termstrap.Model{
-		Content:  content,
-		Width:    width,
-		RootPath: ".",
+		HTML:          content,
+		Width:         width,
+		RootPath:      ".",
+		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
 	}
-	out, err := m.Render()
+	output, err := m.Render()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Render error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Print(out)
+	fmt.Print(output)
 }

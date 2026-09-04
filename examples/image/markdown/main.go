@@ -1,6 +1,5 @@
-// Example: markdown — Images embedded in pure markdown content
-// (no HTML grid). Tests inline image rendering with various sizes
-// and mixed markdown features.
+// Example: markdown (now HTML images) — Demonstrates image rendering
+// at various sizes and contexts.
 //
 // Usage:
 //
@@ -17,85 +16,36 @@ import (
 )
 
 func main() {
-	caps := termimage.Detect()
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
 	}
 
+	caps := termimage.Detect()
 	fmt.Printf("Protocol: %s | Width: %d\n\n", caps.Protocol, width)
 
-	content := `# Markdown Inline Images
+	content := `<h1>HTML Images Demo</h1>
 
-## Default Width (half terminal)
+<h2>Default Width</h2>
+<div><img src="https://go.dev/doc/gopher/frontpage.png" alt="gopher" /></div>
 
-Below is an image at default width (no size specified):
+<hr />
 
-![gopher](https://go.dev/doc/gopher/frontpage.png)
+<h2>Image with Text</h2>
+<p>Some text <b>before</b> the image.</p>
+<div><img src="https://go.dev/doc/gopher/pkg.png" alt="inline" /></div>
+<p>Some text <b>after</b> the image.</p>
 
----
+<hr />
 
-## Explicit Width — Small (20 cols)
-
-![small](https://go.dev/doc/gopher/frontpage.png =20)
-
-## Explicit Width — Medium (40 cols)
-
-![medium](https://go.dev/doc/gopher/frontpage.png =40)
-
-## Explicit Width — Large (60 cols)
-
-![large](https://go.dev/doc/gopher/frontpage.png =60)
-
----
-
-## Extended Attribute Syntax
-
-![extended](https://go.dev/doc/gopher/frontpage.png, width=40, class=rounded, title='Example')
-
-This image uses the new comma-separated attribute syntax, where "width" is parsed
-and other key/value pairs are preserved for later use.
-
----
-
-## Image Between Text
-
-Some text **before** the image. This paragraph demonstrates that images
-can be inlined within flowing markdown content.
-
-![inline](https://go.dev/doc/gopher/pkg.png =30)
-
-Some text **after** the image. The rendering pipeline replaces the
-image placeholder while preserving ANSI codes from glamour.
-
----
-
-## Multiple Images in Sequence
-
-![first](https://go.dev/doc/gopher/frontpage.png =25)
-
-![second](https://www.gstatic.com/webp/gallery/1.webp =25)
-
----
-
-## Image in a List
-
-- Item with no image
-- Item with image: ![list-img](https://go.dev/doc/gopher/frontpage.png =15)
-- Another item after
-
-## Image in a Blockquote
-
-> Here is a quoted section with an image:
->
-> ![quoted](https://go.dev/doc/gopher/frontpage.png =20)
->
-> The image should render inside the quote block.
+<h2>Multiple Images in Sequence</h2>
+<div><img src="https://go.dev/doc/gopher/frontpage.png" alt="first" /></div>
+<div><img src="https://www.gstatic.com/webp/gallery/1.webp" alt="second" /></div>
 `
 
 	m := termstrap.Model{
-		Content: content,
-		Width:   width,
+		HTML:  content,
+		Width: width,
 	}
 	output, err := m.Render()
 	if err != nil {

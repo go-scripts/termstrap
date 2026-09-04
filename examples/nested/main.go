@@ -1,5 +1,5 @@
-// Example: nested — Demonstrates nested grid rows inside columns,
-// showing recursive layout rendering.
+// Example: nested — Demonstrates nested grid layouts (rows inside columns)
+// with multiple nesting levels and styled containers.
 //
 // Usage:
 //
@@ -16,140 +16,102 @@ import (
 )
 
 func main() {
-	width := 120
+	width := 100
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
 	}
 
-	content := `# Nested Grid Demo
+	content := `<h1>Nested Grid Demo</h1>
 
-## 1. Basic Nested Row
+<h2>1. Basic Nested Row</h2>
 
-Outer row with 2 columns. The left column contains a nested row with 2 sub-columns:
-
-<div class="row">
-  <div class="col-md-6 border p-1">
-
-### Outer Left (col-md-6)
+<p>Outer row with 2 columns. The left column contains a nested row with 2 sub-columns:</p>
 
 <div class="row">
   <div class="col-md-6 border p-1">
-
-**Inner Left**
-
-Nested col-md-6
-
+    <h3>Outer Left (col-md-6)</h3>
+    <div class="row">
+      <div class="col-md-6 border p-1">
+        <div><b>Inner Left</b></div>
+        <p>Nested col-md-6</p>
+      </div>
+      <div class="col-md-6 border p-1">
+        <div><b>Inner Right</b></div>
+        <p>Nested col-md-6</p>
+      </div>
+    </div>
   </div>
   <div class="col-md-6 border p-1">
-
-**Inner Right**
-
-Nested col-md-6
-
+    <h3>Outer Right (col-md-6)</h3>
+    <p>This column has no nested layout. Just plain content.</p>
+    <ul>
+      <li>Item one</li>
+      <li>Item two</li>
+      <li>Item three</li>
+    </ul>
   </div>
 </div>
 
-  </div>
-  <div class="col-md-6 border p-1">
+<hr />
 
-### Outer Right (col-md-6)
-
-This column has no nested layout. Just plain markdown content.
-
-- Item one
-- Item two
-- Item three
-
-  </div>
-</div>
-
----
-
-## 2. Deep Nesting (3 Levels)
+<h2>2. Deep Nesting (3 Levels)</h2>
 
 <div class="row">
   <div class="col-md-12 border rounded p-1">
-
-### Level 1 (col-md-12)
-
-<div class="row">
-  <div class="col-md-8 border p-1">
-
-**Level 2 (col-md-8)**
-
-<div class="row">
-  <div class="col-md-6 bg-dark text-white p-1">
-
-**Level 3a**
-
-  </div>
-  <div class="col-md-6 bg-secondary text-white p-1">
-
-**Level 3b**
-
-  </div>
-</div>
-
-  </div>
-  <div class="col-md-4 bg-light text-dark p-1">
-
-**Level 2 (col-md-4)**
-
-Sidebar content.
-
+    <h3>Level 1 (col-md-12)</h3>
+    <div class="row">
+      <div class="col-md-8 border p-1">
+        <div><b>Level 2 (col-md-8)</b></div>
+        <div class="row">
+          <div class="col-md-6 bg-dark text-white p-1">
+            <div><b>Level 3a</b></div>
+          </div>
+          <div class="col-md-6 bg-secondary text-white p-1">
+            <div><b>Level 3b</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4 bg-light text-dark p-1">
+        <div><b>Level 2 (col-md-4)</b></div>
+        <p>Sidebar content.</p>
+      </div>
+    </div>
   </div>
 </div>
 
-  </div>
-</div>
+<hr />
 
----
-
-## 3. Nested with Styled Containers
+<h2>3. Nested with Styled Containers</h2>
 
 <div class="row">
   <div class="col-md-4 bg-primary text-white p-2 rounded">
-
-### Navigation
-
-<div class="row">
-  <div class="col-md-12 p-1">
-
-- Home
-- About
-- Contact
-
-  </div>
-</div>
-
+    <h3>Navigation</h3>
+    <div class="row">
+      <div class="col-md-12 p-1">
+        <div>- Home</div>
+        <div>- About</div>
+        <div>- Contact</div>
+      </div>
+    </div>
   </div>
   <div class="col-md-8 border p-1">
-
-### Content Area
-
-<div class="row">
-  <div class="col-md-6 p-1">
-
-**Article 1**
-
-Lorem ipsum dolor sit amet.
-
-  </div>
-  <div class="col-md-6 p-1">
-
-**Article 2**
-
-Consectetur adipiscing elit.
-
-  </div>
-</div>
-
+    <h3>Content Area</h3>
+    <div class="row">
+      <div class="col-md-6 p-1">
+        <div><b>Article 1</b></div>
+        <p>Lorem ipsum dolor sit amet.</p>
+      </div>
+      <div class="col-md-6 p-1">
+        <div><b>Article 2</b></div>
+        <p>Consectetur adipiscing elit.</p>
+      </div>
+    </div>
   </div>
 </div>
 `
 
 	m := termstrap.Model{
-		Content:       content,
+		HTML:          content,
 		Width:         width,
 		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
 	}

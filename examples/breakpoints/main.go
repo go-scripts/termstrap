@@ -1,8 +1,5 @@
-// Example: breakpoints — Demonstrates the responsive 12-column grid
-// system across different terminal widths (xs, sm, md, lg, xl).
-//
-// Shows how columns stack vertically on narrow terminals and arrange
-// horizontally on wider ones using Bootstrap-style breakpoint classes.
+// Example: breakpoints — Demonstrates responsive grid behavior across
+// different terminal widths using Bootstrap-like breakpoint classes.
 //
 // Usage:
 //
@@ -18,98 +15,76 @@ import (
 )
 
 func main() {
-	content := `# Responsive Breakpoints Demo
+	content := `<h1>Responsive Breakpoints Demo</h1>
 
-## Breakpoint Thresholds
+<h2>Breakpoint Thresholds</h2>
 
-| Breakpoint | Prefix     | Terminal Width |
-|------------|------------|----------------|
-| xs         | col-       | < 60 cols      |
-| sm         | col-sm-    | >= 60 cols     |
-| md         | col-md-    | >= 80 cols     |
-| lg         | col-lg-    | >= 120 cols    |
-| xl         | col-xl-    | >= 160 cols    |
+<table>
+  <tr><th>Breakpoint</th><th>Prefix</th><th>Terminal Width</th></tr>
+  <tr><td>xs</td><td>col-</td><td>&lt; 60 cols</td></tr>
+  <tr><td>sm</td><td>col-sm-</td><td>&gt;= 60 cols</td></tr>
+  <tr><td>md</td><td>col-md-</td><td>&gt;= 80 cols</td></tr>
+  <tr><td>lg</td><td>col-lg-</td><td>&gt;= 120 cols</td></tr>
+  <tr><td>xl</td><td>col-xl-</td><td>&gt;= 160 cols</td></tr>
+</table>
 
----
+<hr />
 
-## col-md-6 — Stacks below 80 cols
+<h2>col-md-6 — Stacks below 80 cols</h2>
 
 <div class="row">
   <div class="col-md-6 border p-1">
-
-**Left (col-md-6)**
-
-Visible side-by-side at 80+ cols.
-
+    <div><b>Left (col-md-6)</b></div>
+    <p>Visible side-by-side at 80+ cols.</p>
   </div>
   <div class="col-md-6 border p-1">
-
-**Right (col-md-6)**
-
-Stacks vertically below 80 cols.
-
+    <div><b>Right (col-md-6)</b></div>
+    <p>Stacks vertically below 80 cols.</p>
   </div>
 </div>
 
----
+<hr />
 
-## col-lg-4 — Stacks below 120 cols
+<h2>col-lg-4 — Stacks below 120 cols</h2>
 
 <div class="row">
   <div class="col-lg-4 border p-1">
-
-**A (col-lg-4)**
-
+    <div><b>A (col-lg-4)</b></div>
   </div>
   <div class="col-lg-4 border p-1">
-
-**B (col-lg-4)**
-
+    <div><b>B (col-lg-4)</b></div>
   </div>
   <div class="col-lg-4 border p-1">
-
-**C (col-lg-4)**
-
+    <div><b>C (col-lg-4)</b></div>
   </div>
 </div>
 
----
+<hr />
 
-## col-sm-6 — Side-by-side from 60 cols
+<h2>col-sm-6 — Side-by-side from 60 cols</h2>
 
 <div class="row">
   <div class="col-sm-6 border p-1">
-
-**Left (col-sm-6)**
-
-Side-by-side starting at 60 cols.
-
+    <div><b>Left (col-sm-6)</b></div>
+    <p>Side-by-side starting at 60 cols.</p>
   </div>
   <div class="col-sm-6 border p-1">
-
-**Right (col-sm-6)**
-
+    <div><b>Right (col-sm-6)</b></div>
   </div>
 </div>
 
----
+<hr />
 
-## Mixed breakpoints — col-sm-12 / col-md-6
+<h2>Mixed breakpoints — col-sm-12 / col-md-6</h2>
 
 <div class="row">
   <div class="col-sm-12 col-md-6 border p-1">
-
-**Panel A**
-
-Full width on small, half on medium+.
-
+    <div><b>Panel A</b></div>
+    <p>Full width on small, half on medium+.</p>
   </div>
   <div class="col-sm-12 col-md-6 border p-1">
-
-**Panel B**
-
-Full width on small, half on medium+.
-
+    <div><b>Panel B</b></div>
+    <p>Full width on small, half on medium+.</p>
   </div>
 </div>
 `
@@ -125,16 +100,16 @@ Full width on small, half on medium+.
 	}
 
 	for _, w := range widths {
-		fmt.Printf("\n%s\n%s\n\n", w.name, "════════════════════════════════════════")
-
+		fmt.Printf("\n\033[1;36m%s\033[0m\n", w.name)
+		fmt.Println("════════════════════════════════════════")
 		m := termstrap.Model{
-			Content:       content,
+			HTML:          content,
 			Width:         w.width,
 			ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
 		}
 		output, err := m.Render()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error at %s: %v\n", w.name, err)
+			fmt.Fprintf(os.Stderr, "Error rendering at width %d: %v\n", w.width, err)
 			continue
 		}
 		fmt.Print(output)

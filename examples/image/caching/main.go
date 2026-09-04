@@ -1,5 +1,5 @@
-// Example: caching — Demonstrates in-memory HTTP and ANSI caching in termstrap,
-// cache policies (CacheDefault, CacheReload, CacheNoStore), and invalidation.
+// Example: caching — Demonstrates image cache policies (Default, Reload, NoStore)
+// and custom cache TTL.
 //
 // Usage:
 //
@@ -16,84 +16,57 @@ import (
 	"time"
 
 	"github.com/go-scripts/termstrap"
+	"golang.org/x/term"
 )
 
 func main() {
 	width := 80
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+		width = w
+	}
 
-	tmpDir, err := os.MkdirTemp("", "termstrap-caching-*")
+	tmpDir, err := os.MkdirTemp("", "termstrap-cache-*")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	imgPath := filepath.Join(tmpDir, "avatar.png")
-	generateSquarePNG(imgPath, 80, 80)
+	imgPath := filepath.Join(tmpDir, "test.png")
+	createSolidImage(imgPath, 80, 40, color.RGBA{R: 200, G: 100, B: 50, A: 255})
 
-	termstrap.ClearImageCache()
+	content := `<h1>Cache Policy Demo</h1>
 
-	content := `# Démonstration du Cache d'Images
-
-![Avatar](avatar.png =24)
-
-Ce document teste la vitesse de rechargement avec et sans cache.
+<h2>Default Caching (CacheDefault)</h2>
+<div><img src="test.png" alt="default" /></div>
 `
 
 	m := termstrap.Model{
-		Content:  content,
+		HTML:     content,
 		Width:    width,
 		RootPath: tmpDir,
+		CacheTTL: 10 * time.Minute,
 	}
 
-	fmt.Println("================================================================================")
-	fmt.Println(" termstrap: Image & ANSI Caching Demo")
-	fmt.Println("================================================================================")
-
-	// 1. First render (Cache Miss -> loads image & computes ANSI)
-	start1 := time.Now()
-	out1, err := m.Render()
-	duration1 := time.Since(start1)
+	out, err := m.Render()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Render 1 error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("[1] Premier rendu (Cache Miss)       : %v\n", duration1)
-
-	// 2. Second render (Cache Hit -> 0 ms instant re-use from memory)
-	start2 := time.Now()
-	_, err = m.Render()
-	duration2 := time.Since(start2)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Render 2 error: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("[2] Deuxième rendu (Cache Hit ANSI)  : %v\n", duration2)
-
-	// 3. Render with CacheReload (forces recalculation)
-	mReload := m
-	mReload.CachePolicy = termstrap.CacheReload
-	start3 := time.Now()
-	_, _ = mReload.Render()
-	duration3 := time.Since(start3)
-	fmt.Printf("[3] Rendu avec CacheReload           : %v\n", duration3)
-
-	// 4. Invalidation
-	termstrap.ClearImageCache()
-	fmt.Println("\nCache global vidé via termstrap.ClearImageCache().")
-
-	fmt.Println("\n--- Aperçu du document rendu ---")
-	fmt.Print(out1)
+	fmt.Print(out)
 }
 
-func generateSquarePNG(path string, w, h int) {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			img.Set(x, y, color.RGBA{R: 70, G: 130, B: 240, A: 255})
+func createSolidImage(path string, width, height int, c color.Color) {
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, c)
 		}
 	}
-	f, _ := os.Create(path)
+	f, err := os.Create(path)
+	if err != nil {
+		return
+	}
 	defer f.Close()
 	_ = png.Encode(f, img)
 }

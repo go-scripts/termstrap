@@ -1,10 +1,8 @@
-// Example: detect — Shows detected terminal capabilities and renders
-// a test image using the auto-detected best protocol.
+// Example: detect — Tests terminal capability detection and auto-configuration.
 //
 // Usage:
 //
 //	go run ./examples/image/detect/
-//	TERMSTRAP_IMAGE_PROTOCOL=sixel go run ./examples/image/detect/
 package main
 
 import (
@@ -17,36 +15,35 @@ import (
 )
 
 func main() {
-	caps := termimage.Detect()
 	width := 80
-	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+	height := 24
+	if w, h, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
+		height = h
 	}
+
+	caps := termimage.Detect()
 
 	fmt.Println("╔══════════════════════════════════════════╗")
 	fmt.Println("║   Termstrap — Terminal Detection Report  ║")
 	fmt.Println("╠══════════════════════════════════════════╣")
-	fmt.Printf("║  Protocol:   %-27s ║\n", caps.Protocol)
-	fmt.Printf("║  TrueColor:  %-27v ║\n", caps.TrueColor)
-	fmt.Printf("║  Columns:    %-27d ║\n", caps.ColCount)
-	fmt.Printf("║  Rows:       %-27d ║\n", caps.RowCount)
-	fmt.Printf("║  TERM:       %-27s ║\n", os.Getenv("TERM"))
-	fmt.Printf("║  TERM_PROGRAM: %-25s ║\n", os.Getenv("TERM_PROGRAM"))
+	fmt.Printf("║  Protocol:   %-28s║\n", caps.Protocol)
+	fmt.Printf("║  TrueColor:  %-28v║\n", caps.TrueColor)
+	fmt.Printf("║  Columns:    %-28d║\n", width)
+	fmt.Printf("║  Rows:       %-28d║\n", height)
+	fmt.Printf("║  TERM:       %-28s║\n", os.Getenv("TERM"))
+	fmt.Printf("║  TERM_PROGRAM: %-26s║\n", os.Getenv("TERM_PROGRAM"))
 	fmt.Println("╚══════════════════════════════════════════╝")
 	fmt.Println()
 
-	content := fmt.Sprintf(`# Image Protocol: %s
-
-Rendering a remote PNG image with auto-detected protocol:
-
-![gopher](https://go.dev/doc/gopher/frontpage.png =40)
-
-The image above was rendered using the **%s** protocol.
-`, caps.Protocol, caps.Protocol)
+	content := `<h1>Image Protocol Demo</h1>
+<p>Rendering a remote PNG image with auto-detected protocol:</p>
+<div><img src="https://go.dev/doc/gopher/frontpage.png" alt="gopher" /></div>
+`
 
 	m := termstrap.Model{
-		Content: content,
-		Width:   width,
+		HTML:  content,
+		Width: width,
 	}
 	output, err := m.Render()
 	if err != nil {

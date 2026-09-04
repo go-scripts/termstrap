@@ -1,12 +1,7 @@
-// Example: local — Render local image files from disk.
-// Demonstrates the RootPath feature for resolving relative paths.
+// Example: local — Loads and renders local image files from disk.
 //
 // Usage:
 //
-//	# First, create a test image:
-//	curl -o /tmp/test-gopher.png https://go.dev/doc/gopher/frontpage.png
-//
-//	# Then run:
 //	go run ./examples/image/local/
 package main
 
@@ -19,79 +14,58 @@ import (
 	"path/filepath"
 
 	"github.com/go-scripts/termstrap"
-	termimage "github.com/go-scripts/termstrap/image"
 	"golang.org/x/term"
 )
 
 func main() {
-	caps := termimage.Detect()
 	width := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
 	}
 
-	fmt.Printf("Protocol: %s | Width: %d\n\n", caps.Protocol, width)
-
-	// Create a temporary directory with test images
 	tmpDir, err := os.MkdirTemp("", "termstrap-local-*")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating temp dir: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
 		os.Exit(1)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Generate a simple test PNG (color gradient)
-	generateTestPNG(filepath.Join(tmpDir, "gradient.png"), 200, 100)
-	// Generate a red square
-	generateSolidPNG(filepath.Join(tmpDir, "red.png"), 80, 80, color.RGBA{220, 50, 50, 255})
-	// Generate a green square
-	generateSolidPNG(filepath.Join(tmpDir, "green.png"), 80, 80, color.RGBA{50, 180, 50, 255})
-	// Generate a blue square
-	generateSolidPNG(filepath.Join(tmpDir, "blue.png"), 80, 80, color.RGBA{50, 100, 220, 255})
+	createSolidImage(filepath.Join(tmpDir, "red.png"), 100, 60, color.RGBA{R: 220, G: 50, B: 50, A: 255})
+	createSolidImage(filepath.Join(tmpDir, "green.png"), 100, 60, color.RGBA{R: 50, G: 180, B: 50, A: 255})
+	createSolidImage(filepath.Join(tmpDir, "blue.png"), 100, 60, color.RGBA{R: 50, G: 100, B: 220, A: 255})
 
-	fmt.Printf("Test images generated in: %s\n\n", tmpDir)
+	content := `<h1>Local Image Files</h1>
 
-	content := `# Local Image Files
+<h2>Gradient (generated PNG)</h2>
 
-## Gradient (generated PNG)
+<div><img src="red.png" alt="red" /></div>
 
-![gradient](gradient.png =50)
+<hr />
 
----
-
-## Color Swatches in Grid
+<h2>Color Swatches in Grid</h2>
 
 <div class="row">
   <div class="col-md-4 border rounded p-1 text-center">
-
-![red](red.png =20)
-
-**Red**
-
+    <div><img src="red.png" alt="red" /></div>
+    <div><b>Red</b></div>
   </div>
   <div class="col-md-4 border rounded p-1 text-center">
-
-![green](green.png =20)
-
-**Green**
-
+    <div><img src="green.png" alt="green" /></div>
+    <div><b>Green</b></div>
   </div>
   <div class="col-md-4 border rounded p-1 text-center">
-
-![blue](blue.png =20)
-
-**Blue**
-
+    <div><img src="blue.png" alt="blue" /></div>
+    <div><b>Blue</b></div>
   </div>
 </div>
 
----
+<hr />
 
-These images were generated on the fly and loaded from disk using ` + "`RootPath`" + `.
+<p>These images were generated on the fly and loaded from disk using <code>RootPath</code>.</p>
 `
 
 	m := termstrap.Model{
-		Content:  content,
+		HTML:     content,
 		Width:    width,
 		RootPath: tmpDir,
 	}
@@ -103,37 +77,17 @@ These images were generated on the fly and loaded from disk using ` + "`RootPath
 	fmt.Print(output)
 }
 
-func generateTestPNG(path string, w, h int) {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			r := uint8(float64(x) / float64(w) * 255)
-			g := uint8(float64(y) / float64(h) * 255)
-			b := uint8(128)
-			img.Set(x, y, color.RGBA{r, g, b, 255})
-		}
-	}
-	savePNG(path, img)
-}
-
-func generateSolidPNG(path string, w, h int, c color.RGBA) {
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+func createSolidImage(path string, width, height int, c color.Color) {
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
 			img.Set(x, y, c)
 		}
 	}
-	savePNG(path, img)
-}
-
-func savePNG(path string, img image.Image) {
 	f, err := os.Create(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating %s: %v\n", path, err)
 		return
 	}
 	defer f.Close()
-	if err := png.Encode(f, img); err != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding %s: %v\n", path, err)
-	}
+	_ = png.Encode(f, img)
 }

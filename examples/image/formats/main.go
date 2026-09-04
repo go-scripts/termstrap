@@ -1,7 +1,5 @@
-// Example: formats — Tests rendering of different image formats
-// (PNG, JPEG, WebP, GIF) through the image pipeline.
-//
-// Verifies that all registered decoders work correctly with each protocol.
+// Example: formats — Demonstrates rendering of all supported image formats:
+// PNG, JPEG, WebP, and GIF.
 //
 // Usage:
 //
@@ -18,47 +16,39 @@ import (
 )
 
 func main() {
-	caps := termimage.Detect()
 	width := 80
-	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+	height := 24
+	if w, h, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
 		width = w
+		height = h
 	}
 
-	fmt.Printf("Protocol: %s | Terminal: %dx%d\n\n", caps.Protocol, caps.ColCount, caps.RowCount)
+	caps := termimage.Detect()
+	fmt.Printf("Protocol: %s | Terminal: %dx%d\n\n", caps.Protocol, width, height)
 
-	content := `# Image Format Test
+	content := `<h1>Image Format Test</h1>
 
-## PNG (lossless, transparency support)
+<h2>PNG (lossless, transparency support)</h2>
+<div><img src="https://go.dev/doc/gopher/frontpage.png" alt="png" /></div>
 
-![png](https://go.dev/doc/gopher/frontpage.png =40)
+<hr />
 
----
+<h2>JPEG (lossy, photographs)</h2>
+<div><img src="https://picsum.photos/id/237/200/300.jpg" alt="jpeg" /></div>
 
-## JPEG (lossy, photographs)
+<hr />
 
-![jpeg](https://picsum.photos/id/237/200/300.jpg =40)
+<h2>WebP (modern format, lossy &amp; lossless)</h2>
+<div><img src="https://www.gstatic.com/webp/gallery/1.webp" alt="webp" /></div>
 
----
+<hr />
 
-## WebP (modern format, lossy & lossless)
-
-![webp](https://www.gstatic.com/webp/gallery/1.webp =40)
-
----
-
-## GIF (animated / legacy)
-
-![gif](https://go.dev/doc/gopher/pkg.png =30)
-
----
-
-All four formats above should render correctly. If a format fails,
-a warning is logged to stderr and the image is silently skipped.
+<p>All formats above should render correctly.</p>
 `
 
 	m := termstrap.Model{
-		Content: content,
-		Width:   width,
+		HTML:  content,
+		Width: width,
 	}
 	output, err := m.Render()
 	if err != nil {
