@@ -1,0 +1,94 @@
+/* Tokyo Night Theme Colors */
+blockquote {
+  color: #565f89;
+}
+
+code {
+  background-color: #24283b;
+  color: #e0af68;
+}
+
+pre {
+  background-color: #1a1b26;
+  color: #c0caf5;
+}
+
+.bg-primary {
+  background-color: #7aa2f7;
+  color: #1a1b26;
+}
+
+.bg-secondary {
+  background-color: #414868;
+  color: #c0caf5;
+}
+
+.bg-success {
+  background-color: #9ece6a;
+  color: #1a1b26;
+}
+
+.bg-danger {
+  background-color: #f7768e;
+  color: #1a1b26;
+}
+
+.bg-warning {
+  background-color: #e0af68;
+  color: #1a1b26;
+}
+
+.bg-info {
+  background-color: #7dcfff;
+  color: #1a1b26;
+}
+
+.bg-light {
+  background-color: #cfc9c2;
+  color: #1a1b26;
+}
+
+.bg-dark {
+  background-color: #16161e;
+  color: #c0caf5;
+}
+
+.text-primary {
+  color: #7aa2f7;
+}
+
+.text-secondary {
+  color: #565f89;
+}
+
+.text-success {
+  color: #9ece6a;
+}
+
+.text-danger {
+  color: #f7768e;
+}
+
+.text-warning {
+  color: #e0af68;
+}
+
+.text-info {
+  color: #7dcfff;
+}
+
+.text-light {
+  color: #c0caf5;
+}
+
+.text-dark {
+  color: #15161e;
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.text-muted {
+  color: #565f89;
+}

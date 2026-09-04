@@ -1,0 +1,94 @@
+/* Bootstrap Theme Colors */
+blockquote {
+  color: #6c757d;
+}
+
+code {
+  background-color: #343a40;
+  color: #ffc107;
+}
+
+pre {
+  background-color: #212529;
+  color: #f8f9fa;
+}
+
+.bg-primary {
+  background-color: #0d6efd;
+  color: #ffffff;
+}
+
+.bg-secondary {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+.bg-success {
+  background-color: #198754;
+  color: #ffffff;
+}
+
+.bg-danger {
+  background-color: #dc3545;
+  color: #ffffff;
+}
+
+.bg-warning {
+  background-color: #ffc107;
+  color: #000000;
+}
+
+.bg-info {
+  background-color: #0dcaf0;
+  color: #000000;
+}
+
+.bg-light {
+  background-color: #f8f9fa;
+  color: #000000;
+}
+
+.bg-dark {
+  background-color: #212529;
+  color: #ffffff;
+}
+
+.text-primary {
+  color: #0d6efd;
+}
+
+.text-secondary {
+  color: #6c757d;
+}
+
+.text-success {
+  color: #198754;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-warning {
+  color: #ffc107;
+}
+
+.text-info {
+  color: #0dcaf0;
+}
+
+.text-light {
+  color: #f8f9fa;
+}
+
+.text-dark {
+  color: #212529;
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.text-muted {
+  color: #6c757d;
+}

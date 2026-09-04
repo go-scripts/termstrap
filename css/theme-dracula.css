@@ -1,0 +1,94 @@
+/* Dracula Theme Colors */
+blockquote {
+  color: #6272a4;
+}
+
+code {
+  background-color: #44475a;
+  color: #f1fa8c;
+}
+
+pre {
+  background-color: #282a36;
+  color: #f8f8f2;
+}
+
+.bg-primary {
+  background-color: #bd93f9;
+  color: #282a36;
+}
+
+.bg-secondary {
+  background-color: #6272a4;
+  color: #f8f8f2;
+}
+
+.bg-success {
+  background-color: #50fa7b;
+  color: #282a36;
+}
+
+.bg-danger {
+  background-color: #ff5555;
+  color: #282a36;
+}
+
+.bg-warning {
+  background-color: #ffb86c;
+  color: #282a36;
+}
+
+.bg-info {
+  background-color: #8be9fd;
+  color: #282a36;
+}
+
+.bg-light {
+  background-color: #f8f8f2;
+  color: #282a36;
+}
+
+.bg-dark {
+  background-color: #21222c;
+  color: #f8f8f2;
+}
+
+.text-primary {
+  color: #bd93f9;
+}
+
+.text-secondary {
+  color: #6272a4;
+}
+
+.text-success {
+  color: #50fa7b;
+}
+
+.text-danger {
+  color: #ff5555;
+}
+
+.text-warning {
+  color: #ffb86c;
+}
+
+.text-info {
+  color: #8be9fd;
+}
+
+.text-light {
+  color: #f8f8f2;
+}
+
+.text-dark {
+  color: #282a36;
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.text-muted {
+  color: #6272a4;
+}

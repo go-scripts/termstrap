@@ -3,11 +3,12 @@ module github.com/go-scripts/termstrap
 go 1.25.0
 
 require (
-	github.com/MichaelMure/go-term-markdown v0.1.4
 	github.com/PuerkitoBio/goquery v1.9.2
-	github.com/charmbracelet/glamour v0.7.0
+	github.com/andybalholm/cascadia v1.3.2
+	github.com/aymerick/douceur v0.2.0
 	github.com/charmbracelet/lipgloss v0.12.1
 	github.com/mattn/go-sixel v0.0.9
+	github.com/muesli/reflow v0.3.0
 	github.com/muesli/termenv v0.16.0
 	github.com/stroborobo/aimg v0.0.0-20160313155118-8966abff05e4
 	golang.org/x/image v0.41.0
