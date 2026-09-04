@@ -4,24 +4,23 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/go-scripts/termstrap)](https://goreportcard.com/report/github.com/go-scripts/termstrap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Termstrap** brings the declarative power of modern web layouts (Bootstrap 5 grids, utility classes, and Markdown) to the terminal, paired with a multi-protocol terminal graphics engine (**Kitty**, **iTerm2**, **Sixel**, and **Half-Block Unicode**).
+**Termstrap** is a modern, pure **HTML/CSS terminal rendering engine** written in Go. It allows you to build rich, responsive command-line and TUI interfaces using standard HTML markup, a built-in Bootstrap CSS utility framework, custom stylesheets, and multi-protocol terminal graphics (**Kitty**, **iTerm2**, **Sixel**, and **Half-Block Unicode**).
 
-Whether you are building CLI tools, rich terminal dashboards, or interactive [Bubble Tea](https://github.com/charmbracelet/bubbletea) TUI applications, Termstrap lets you design structured terminal user interfaces using familiar HTML grid syntax and Markdown.
+> 📖 **Full Feature Reference**: See [FEATURES.md](FEATURES.md) for the complete and up-to-date list of all supported HTML tags, Bootstrap classes, breakpoints, box models, and CSS capabilities.
 
 ---
 
 ## ✨ Highlights
 
 * 📐 **Responsive Bootstrap Grid**: Full 12-column grid (`.row`, `.col-*`, `.col-md-*`), auto-columns, nested multi-tier rows, and automatic responsive stacking based on terminal width.
-* 🎨 **Rich Utility Classes**: Padding (`p-*`, `px-*`, `py-*`), margins (`m-*`), borders (`border`, `rounded`), text alignment (`text-center`, `text-end`), box shadows (`shadow-sm`, `shadow-lg`), and ANSI 256/TrueColor backgrounds and foregrounds (`bg-primary`, `text-success`).
+* 🎨 **Universal Box Model & Utility Classes**: Margins (`m-0` to `m-5`), padding (`p-0` to `p-5`), borders (`border`, `rounded`), text alignment (`text-center`, `text-end`), box shadows (`shadow-sm`, `shadow-lg`), and TrueColor backgrounds/foregrounds (`bg-primary`, `text-success`) applicable to **any HTML tag**.
+* 🌐 **Pure HTML Support & Custom CSS**: Native rendering for `<table>`, `<h1>`-`<h6>`, `<blockquote>`, `<pre>`, `<code>`, `<hr>`, and external stylesheets via `WithStylesheets(...)`.
 * 🖼️ **Terminal Graphics Engine**:
   * Auto-detection & fallback: **Kitty Graphics**, **iTerm2 Inline Images**, **Sixel**, and universal **Half-Block Unicode (`▄`/`▀`)**.
   * **Color Modes**: TrueColor (24-bit), ANSI 256 colors, and ANSI 16 colors with palette quantization.
   * **ANSI Sequence Optimization**: Deduplicates contiguous escape sequences for compact output and maximum throughput.
   * **In-Memory Caching**: Thread-safe decoded image and ANSI render cache with configurable TTL and eviction policies.
-* 📝 **Glamour Markdown Integration**: Seamlessly format Markdown headings, lists, code blocks, tables, and images inside columns.
 * 🫧 **Bubble Tea TUI Ready**: Dedicated `bubbletea/` adapter providing out-of-band graphic sequence handling without cell-buffer corruption.
-
 ---
 
 ## 🧭 Philosophy & Architecture
