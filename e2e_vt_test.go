@@ -30,22 +30,22 @@ func TestE2E_ResponsiveStackingVsSideBySide(t *testing.T) {
 		screen.AssertText(t, 2, 0, "80s Huge Hits FLAC 2026")
 
 		// Below width 80 (md breakpoint), col-md-6 columns stack vertically at full container width (66 cols: [2..67]).
-		// First column (Cover & metadata table) starts at y=2, height=16
-		screen.AssertBorderBox(t, 2, 2, 66, 16)
-		screen.AssertText(t, 6, 10, "Catégorie")
-		screen.AssertText(t, 36, 10, "Musiques")
+		// First column (Cover & metadata table) starts at y=2, height=13
+		screen.AssertBorderBox(t, 2, 2, 66, 13)
+		screen.AssertText(t, 6, 8, "Catégorie")
+		screen.AssertText(t, 36, 8, "Musiques")
 
 		var botY70 int
-		for y := 19; y < 100; y++ {
+		for y := 16; y < 100; y++ {
 			if screen.Char(2, y) == '╰' {
 				botY70 = y
 				break
 			}
 		}
-		height70 := botY70 - 18 + 1
-		screen.AssertBorderBox(t, 2, 18, 66, height70)
-		screen.AssertText(t, 5, 21, "Description")
-		screen.AssertText(t, 8, 24, "• A-Ha - Take On Me [03:48]")
+		height70 := botY70 - 15 + 1
+		screen.AssertBorderBox(t, 2, 15, 66, height70)
+		screen.AssertText(t, 5, 17, "Description")
+		screen.AssertText(t, 8, 19, "• A-Ha - Take On Me [03:48]")
 	})
 	t.Run("Side-by-Side at width 120 (above col-md 80 breakpoint)", func(t *testing.T) {
 		m := New(htmlStr, WithWidth(120), WithDisableImages(true))
@@ -60,10 +60,10 @@ func TestE2E_ResponsiveStackingVsSideBySide(t *testing.T) {
 		screen.AssertText(t, 2, 0, "80s Huge Hits FLAC 2026")
 
 		// At width 120, col-md-6 divides space into two 58-col columns side-by-side:
-		// Left column: x in [2, 59] (width 58, height 16)
-		// Right column: x in [60, 117] (width 58, height 49)
+		// Left column: x in [2, 59] (width 58, height 13)
+		// Right column: x in [60, 117] (width 58, height 68)
 		// Both top corners must be on the exact same row (y=2)
-		screen.AssertBorderBox(t, 2, 2, 58, 16)
+		screen.AssertBorderBox(t, 2, 2, 58, 13)
 
 		// Top corners aligned on row 2
 		screen.AssertChar(t, 2, 2, '╭')
@@ -80,8 +80,8 @@ func TestE2E_ResponsiveStackingVsSideBySide(t *testing.T) {
 		}
 		height120 := botY120 - 2 + 1
 		screen.AssertBorderBox(t, 60, 2, 58, height120)
-		screen.AssertText(t, 63, 5, "Description")
-		screen.AssertText(t, 66, 8, "• A-Ha - Take On Me [03:48]")
+		screen.AssertText(t, 63, 4, "Description")
+		screen.AssertText(t, 66, 6, "• A-Ha - Take On Me [03:48]")
 	})
 }
 
