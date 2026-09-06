@@ -135,7 +135,7 @@ func TestEngine_ColoredAlerts(t *testing.T) {
 }
 
 func TestEngine_DocumentWidthRegression(t *testing.T) {
-	htmlBytes, err := os.ReadFile("examples/html/80s Huge Hits FLAC 2026.html")
+	htmlBytes, err := os.ReadFile("examples/bootstrap/80s Huge Hits FLAC 2026.html")
 	if err != nil {
 		t.Skip("html file not found")
 	}

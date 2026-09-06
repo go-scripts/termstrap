@@ -132,9 +132,9 @@ run_test "URL-encoded %20 filename resolution" "make render -- '$TMP_DIR/80s%20H
 # Scenario 7: Legacy FILE= and custom width/theme flags
 run_test "Legacy FILE= syntax with WIDTH and THEME" "make render FILE=$TMP_DIR/grid.html WIDTH=80 THEME=tokyonight" "Col 1"
 
-# Scenario 9: Full HTML Torrent Details file (examples/html/80s Huge Hits FLAC 2026.html)
-run_test "Full Torrent File Stacked (width 100)" "make render -- 'examples/html/80s Huge Hits FLAC 2026.html' -w 100" "80s Huge Hits FLAC 2026"
-run_test "Full Torrent File 2-Col Grid (width 180, col-xl-6)" "make render -- 'examples/html/80s Huge Hits FLAC 2026.html' -w 180" "Description"
+# Scenario 9: Full HTML Torrent Details file (examples/bootstrap/80s Huge Hits FLAC 2026.html)
+run_test "Full Torrent File Stacked (width 100)" "make render -- 'examples/bootstrap/80s Huge Hits FLAC 2026.html' -w 100" "80s Huge Hits FLAC 2026"
+run_test "Full Torrent File 2-Col Grid (width 180, col-xl-6)" "make render -- 'examples/bootstrap/80s Huge Hits FLAC 2026.html' -w 180" "Description"
 
 # Scenario 10: 256 Colors Quantization Mode (-c 256)
 run_test "256 Colors Quantization Mode (-c 256)" "make render -- $TMP_DIR/alerts.html -w 80 -c 256" "Success Alert"
