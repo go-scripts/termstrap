@@ -86,8 +86,10 @@ type ComputedStyle struct {
 	TextAlign lipgloss.Position
 
 	// Grid / Sizing
-	ColSpan int // 1-12 for flex items
-	Width   int // explicit width if specified
+	ColSpan int  // 1-12 for flex items
+	ColAuto bool // true for .col without explicit span number
+	RowCols int  // 1-12 items per row from .row-cols-[bp-]N
+	Width   int  // explicit width if specified
 }
 
 // CSSRule represents a compiled selector and declaration block.
@@ -197,35 +199,45 @@ func (m *CSSMatcher) ComputeStyleForSelection(sel *goquery.Selection, termWidth 
 		}
 	}
 
-	// Extract responsive column spans based on current breakpoint
+	// Extract responsive column spans and row-cols based on current breakpoint
 	bp := detectBreakpoint(termWidth)
 	classAttr, _ := sel.Attr("class")
 	classes := strings.Fields(classAttr)
-	if span := resolveColSpanResponsive(classes, bp); span > 0 {
+	span, isAuto := resolveColSpanResponsive(classes, bp)
+	if span > 0 {
 		s.ColSpan = span
 	}
+	s.ColAuto = isAuto
+	s.RowCols = resolveRowColsResponsive(classes, bp)
 
 	return s
 }
 
 // resolveColSpanResponsive extracts the appropriate column span (1-12) for the current breakpoint.
-func resolveColSpanResponsive(classes []string, currentBP Breakpoint) int {
+func resolveColSpanResponsive(classes []string, currentBP Breakpoint) (int, bool) {
 	type colSpec struct {
-		bp   Breakpoint
-		span int
+		bp     Breakpoint
+		span   int
+		isAuto bool
 	}
 
 	var specs []colSpec
 	for _, cls := range classes {
-		if !strings.HasPrefix(cls, "col") {
+		if cls == "col" {
+			specs = append(specs, colSpec{bp: bpXS, span: 0, isAuto: true})
+			continue
+		}
+		if !strings.HasPrefix(cls, "col-") {
 			continue
 		}
 		parts := strings.Split(cls, "-")
-		if len(parts) == 2 { // col-6
-			if span, err := strconv.Atoi(parts[1]); err == nil && span >= 1 && span <= 12 {
+		if len(parts) == 2 { // col-6, col-auto
+			if parts[1] == "auto" {
+				specs = append(specs, colSpec{bp: bpXS, span: 0, isAuto: true})
+			} else if span, err := strconv.Atoi(parts[1]); err == nil && span >= 1 && span <= 12 {
 				specs = append(specs, colSpec{bp: bpXS, span: span})
 			}
-		} else if len(parts) == 3 { // col-md-6
+		} else if len(parts) == 3 { // col-md-6, col-md-auto
 			bpPrefix := parts[1]
 			var bp Breakpoint
 			switch bpPrefix {
@@ -240,7 +252,9 @@ func resolveColSpanResponsive(classes []string, currentBP Breakpoint) int {
 			default:
 				continue
 			}
-			if span, err := strconv.Atoi(parts[2]); err == nil && span >= 1 && span <= 12 {
+			if parts[2] == "auto" {
+				specs = append(specs, colSpec{bp: bp, span: 0, isAuto: true})
+			} else if span, err := strconv.Atoi(parts[2]); err == nil && span >= 1 && span <= 12 {
 				specs = append(specs, colSpec{bp: bp, span: span})
 			}
 		}
@@ -248,21 +262,71 @@ func resolveColSpanResponsive(classes []string, currentBP Breakpoint) int {
 
 	// Find the best match: highest breakpoint <= currentBP
 	bestSpan := 0
+	bestAuto := false
 	bestBP := Breakpoint(-1)
 	for _, spec := range specs {
 		if spec.bp <= currentBP && spec.bp > bestBP {
 			bestBP = spec.bp
 			bestSpan = spec.span
+			bestAuto = spec.isAuto
 		}
 	}
 
 	// If classes specify column breakpoints but none match the current breakpoint (e.g. col-md-6 on xs),
 	// the column stacks (span = 12).
-	if len(specs) > 0 && bestSpan == 0 {
-		return 12
+	if len(specs) > 0 && bestSpan == 0 && !bestAuto {
+		return 12, false
 	}
 
-	return bestSpan
+	return bestSpan, bestAuto
+}
+
+// resolveRowColsResponsive extracts the number of columns per row (from row-cols-[bp-]N)
+func resolveRowColsResponsive(classes []string, currentBP Breakpoint) int {
+	type rowColSpec struct {
+		bp    Breakpoint
+		count int
+	}
+	var specs []rowColSpec
+	for _, cls := range classes {
+		if !strings.HasPrefix(cls, "row-cols-") {
+			continue
+		}
+		parts := strings.Split(cls, "-")
+		if len(parts) == 3 { // row-cols-2
+			if n, err := strconv.Atoi(parts[2]); err == nil && n >= 1 && n <= 12 {
+				specs = append(specs, rowColSpec{bp: bpXS, count: n})
+			}
+		} else if len(parts) == 4 { // row-cols-md-2
+			bpPrefix := parts[2]
+			var bp Breakpoint
+			switch bpPrefix {
+			case "sm":
+				bp = bpSM
+			case "md":
+				bp = bpMD
+			case "lg":
+				bp = bpLG
+			case "xl":
+				bp = bpXL
+			default:
+				continue
+			}
+			if n, err := strconv.Atoi(parts[3]); err == nil && n >= 1 && n <= 12 {
+				specs = append(specs, rowColSpec{bp: bp, count: n})
+			}
+		}
+	}
+
+	bestCount := 0
+	bestBP := Breakpoint(-1)
+	for _, spec := range specs {
+		if spec.bp <= currentBP && spec.bp > bestBP {
+			bestBP = spec.bp
+			bestCount = spec.count
+		}
+	}
+	return bestCount
 }
 
 func applyDeclaration(s *ComputedStyle, decl *css.Declaration) {
@@ -283,10 +347,7 @@ func applyDeclaration(s *ComputedStyle, decl *css.Declaration) {
 		}
 
 	case "margin":
-		v, h := parseBox2D(val)
-		s.MarginTop, s.MarginBottom = v, v
-		s.MarginLeft, s.MarginRight = h, h
-
+		s.MarginTop, s.MarginRight, s.MarginBottom, s.MarginLeft = parseBox4D(val)
 	case "margin-top":
 		s.MarginTop = parseInt(val)
 	case "margin-bottom":
@@ -297,10 +358,7 @@ func applyDeclaration(s *ComputedStyle, decl *css.Declaration) {
 		s.MarginRight = parseInt(val)
 
 	case "padding":
-		v, h := parseBox2D(val)
-		s.PaddingTop, s.PaddingBottom = v, v
-		s.PaddingLeft, s.PaddingRight = h, h
-
+		s.PaddingTop, s.PaddingRight, s.PaddingBottom, s.PaddingLeft = parseBox4D(val)
 	case "padding-top":
 		s.PaddingTop = parseInt(val)
 	case "padding-bottom":
@@ -375,14 +433,27 @@ func parseInt(val string) int {
 	return n
 }
 
-func parseBox2D(val string) (int, int) {
+func parseBox4D(val string) (int, int, int, int) {
 	fields := strings.Fields(val)
 	if len(fields) == 0 {
-		return 0, 0
+		return 0, 0, 0, 0
 	}
 	if len(fields) == 1 {
 		n := parseInt(fields[0])
-		return n, n
+		return n, n, n, n
 	}
-	return parseInt(fields[0]), parseInt(fields[1])
+	if len(fields) == 2 {
+		v, h := parseInt(fields[0]), parseInt(fields[1])
+		return v, h, v, h
+	}
+	if len(fields) == 3 {
+		top, h, bottom := parseInt(fields[0]), parseInt(fields[1]), parseInt(fields[2])
+		return top, h, bottom, h
+	}
+	return parseInt(fields[0]), parseInt(fields[1]), parseInt(fields[2]), parseInt(fields[3])
+}
+
+func parseBox2D(val string) (int, int) {
+	top, right, _, _ := parseBox4D(val)
+	return top, right
 }

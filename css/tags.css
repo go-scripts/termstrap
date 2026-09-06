@@ -40,7 +40,6 @@ i {
 
 h1 {
   font-weight: bold;
-  margin-top: 1;
   margin-bottom: 1;
 }
 
@@ -66,12 +65,19 @@ h6 {
   font-weight: bold;
 }
 
+p {
+  margin-bottom: 1;
+}
+
 hr {
-  border-bottom: true;
   margin-top: 1;
   margin-bottom: 1;
 }
 
+ul,
+ol {
+  margin-bottom: 1;
+}
 blockquote {
   border-left: true;
   padding-left: 2;
@@ -80,13 +86,10 @@ blockquote {
 }
 
 pre {
-  padding: 1;
-  margin-top: 1;
-  margin-bottom: 1;
+  padding: 0 1;
 }
 
 table {
-  border: true;
   margin-top: 1;
   margin-bottom: 1;
 }
@@ -99,5 +102,4 @@ td {
 
 th {
   font-weight: bold;
-  border-bottom: true;
 }
