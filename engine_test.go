@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/go-scripts/termstrap/testutil"
 )
 
 func TestEngine_SimpleDivAndMargins(t *testing.T) {
@@ -218,18 +219,18 @@ func TestEngine_BackgroundColorPersistence(t *testing.T) {
 		t.Fatalf("Render failed: %v", err)
 	}
 
-	bgSeq := "48;2;121;162;247"
-	lines := strings.Split(out, "\n")
-	for i, line := range lines {
-		// Content lines inside borders should preserve TokyoNight blue bg
-		if strings.Contains(line, "TokyoNight Theme") || strings.Contains(line, "Blue accent") {
-			if !strings.Contains(line, bgSeq) {
-				t.Errorf("Line %d expected to contain bgSeq %s, got:\n%q", i, bgSeq, line)
-			}
-			// Ensure reset code is not left without background re-applied
-			if strings.Contains(line, "\x1b[0m   ") {
-				t.Errorf("Line %d has uncolored trailing spaces after reset: %q", i, line)
-			}
+	screen := testutil.NewScreen(80, 15, out)
+	boxW := 80
+	boxH := 10
+	screen.AssertBorderBox(t, 0, 0, boxW, boxH)
+	screen.AssertText(t, 3, 3, "TokyoNight Theme")
+	screen.AssertText(t, 3, 6, "Blue accent header with dark text.")
+
+	// Verify that inside the rounded border box (x in [1, 78], y in [1, 8]),
+	// background color is consistently TokyoNight primary (121;162;247 / #79a2f7)
+	for y := 1; y < boxH-1; y++ {
+		for x := 1; x < boxW-1; x++ {
+			screen.AssertBgColor(t, x, y, "121;162;247")
 		}
 	}
 }
@@ -245,20 +246,18 @@ func TestEngine_BackgroundColorAcrossCenteredText(t *testing.T) {
 		t.Fatalf("Render failed: %v", err)
 	}
 
-	bgSeq := "48;2;13;110;253"
-	lines := strings.Split(out, "\n")
-	for i, line := range lines {
-		if strings.Contains(line, "Col 1") {
-			if !strings.Contains(line, bgSeq) {
-				t.Errorf("Line %d expected to contain bgSeq %s, got:\n%q", i, bgSeq, line)
-			}
-			if strings.Contains(line, "\x1b[0m   ") {
-				t.Errorf("Line %d has uncolored spaces after reset: %q", i, line)
-			}
-		}
+	screen := testutil.NewScreen(90, 10, out)
+	boxW := 30
+	boxH := 3
+	screen.AssertBorderBox(t, 0, 0, boxW, boxH)
+	screen.AssertText(t, 12, 1, "Col 1")
+
+	// Verify that every interior cell (padding, centered text, and trailing spaces)
+	// maintains Bootstrap primary background (13;110;253 / #0d6efd)
+	for x := 1; x < boxW-1; x++ {
+		screen.AssertBgColor(t, x, 1, "13;110;253")
 	}
 }
-
 func TestEngine_ColumnWidthFullAllocation(t *testing.T) {
 	html := `<div class="container p-1">
 		<div class="border rounded p-1 mb-1">Header Card</div>
@@ -273,25 +272,27 @@ func TestEngine_ColumnWidthFullAllocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render failed: %v", err)
 	}
+	screen := testutil.NewScreen(100, 20, out)
 
-	lines := strings.Split(out, "\n")
-	var headerRightEdge, rowRightEdge int
-	for _, line := range lines {
-		w := lipgloss.Width(line)
-		if strings.Contains(line, "Header Card") {
-			headerRightEdge = w
-		}
-		if strings.Contains(line, "Col 1") && strings.Contains(line, "Col 2") {
-			rowRightEdge = w
-		}
-	}
+	// Container padding is p-1 -> left padding 1, right padding 1.
+	// Inner width = 100 - 2 = 98.
+	// Header box spans x in [1, 98], so width is 98, height is 3 (lines y=0, 1, 2).
+	screen.AssertBorderBox(t, 1, 0, 98, 3)
+	screen.AssertText(t, 3, 1, "Header Card")
 
-	if headerRightEdge == 0 || rowRightEdge == 0 {
-		t.Fatalf("Failed to detect rendered lines in output:\n%s", out)
-	}
+	// Row starts at y=4 (due to mb-1 at y=3).
+	// Col-5 takes 40 cols, Col-7 takes remaining 58 cols.
+	// Col 1 box: x=1, width=40, height=3 (lines y=4, 5, 6).
+	screen.AssertBorderBox(t, 1, 4, 40, 3)
+	screen.AssertText(t, 3, 5, "Col 1")
 
-	if headerRightEdge != rowRightEdge {
-		t.Errorf("Expected 2-column row width (%d) to match header card width (%d), got diff: %d",
-			rowRightEdge, headerRightEdge, rowRightEdge-headerRightEdge)
-	}
+	// Col 2 box: x=41, width=58, height=3 (lines y=4, 5, 6).
+	screen.AssertBorderBox(t, 41, 4, 58, 3)
+	screen.AssertText(t, 43, 5, "Col 2")
+
+	// Verify top-right corner of header (x=98, y=0) exactly aligns with top-right of Col 2 (x=98, y=4)
+	screen.AssertChar(t, 98, 0, '╮')
+	screen.AssertChar(t, 98, 4, '╮')
+	screen.AssertChar(t, 98, 6, '╯')
 }
+
