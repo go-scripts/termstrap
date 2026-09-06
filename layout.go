@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/net/html"
 )
 
@@ -38,7 +37,7 @@ type RenderNode struct {
 }
 
 // BuildRenderTree recursively converts a goquery DOM tree into a RenderTree with resolved styles.
-func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int) *RenderNode {
+func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int, parentStyle *ComputedStyle) *RenderNode {
 	node := sel.Get(0)
 	if node == nil {
 		return nil
@@ -87,7 +86,7 @@ func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int)
 		return nil
 	}
 
-	style := matcher.ComputeStyleForSelection(sel, termWidth)
+	style := matcher.ComputeStyleForSelection(sel, termWidth, parentStyle)
 	if style.Display == DisplayNone {
 		return nil
 	}
@@ -123,17 +122,10 @@ func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int)
 	// Recursively build children
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
 		childSel := sel.FindNodes(c)
-		childRNode := BuildRenderTree(childSel, matcher, termWidth)
+		childRNode := BuildRenderTree(childSel, matcher, termWidth, &style)
 		if childRNode != nil {
 			if rNode.Style.Display == DisplayFlex && childRNode.Type == NodeText && strings.TrimSpace(childRNode.Text) == "" {
 				continue
-			}
-			// Inherit CSS properties (color, text-align)
-			if childRNode.Style.FgColor == "" && rNode.Style.FgColor != "" {
-				childRNode.Style.FgColor = rNode.Style.FgColor
-			}
-			if childRNode.Style.TextAlign == lipgloss.Left && rNode.Style.TextAlign != lipgloss.Left {
-				childRNode.Style.TextAlign = rNode.Style.TextAlign
 			}
 			rNode.Children = append(rNode.Children, childRNode)
 		}

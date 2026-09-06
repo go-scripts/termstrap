@@ -76,15 +76,19 @@ type ComputedStyle struct {
 	Shadow int
 
 	// Colors
-	FgColor string
-	BgColor string
+	FgColor    string
+	FgColorSet bool
+	BgColor    string
 
 	// Typography
-	Bold      bool
-	Italic    bool
-	Underline bool
-	TextAlign lipgloss.Position
-
+	Bold         bool
+	BoldSet      bool
+	Italic       bool
+	ItalicSet    bool
+	Underline    bool
+	UnderlineSet bool
+	TextAlign    lipgloss.Position
+	TextAlignSet bool
 	// Grid / Sizing
 	ColSpan int  // 1-12 for flex items
 	ColAuto bool // true for .col without explicit span number
@@ -160,12 +164,11 @@ func NewCSSMatcher(theme Theme, stylesheets ...string) (*CSSMatcher, error) {
 }
 
 // ComputeStyleForSelection resolves styling for a specific DOM selection given a terminal width.
-func (m *CSSMatcher) ComputeStyleForSelection(sel *goquery.Selection, termWidth int) ComputedStyle {
+func (m *CSSMatcher) ComputeStyleForSelection(sel *goquery.Selection, termWidth int, parentStyle *ComputedStyle) ComputedStyle {
 	s := ComputedStyle{
 		Display:   DisplayBlock,
 		TextAlign: lipgloss.Left,
 	}
-
 	node := sel.Get(0)
 	if node == nil {
 		return s
@@ -209,6 +212,30 @@ func (m *CSSMatcher) ComputeStyleForSelection(sel *goquery.Selection, termWidth 
 	}
 	s.ColAuto = isAuto
 	s.RowCols = resolveRowColsResponsive(classes, bp)
+
+	// Inherit missing properties from parentStyle if present
+	if parentStyle != nil {
+		if !s.FgColorSet {
+			s.FgColor = parentStyle.FgColor
+			s.FgColorSet = parentStyle.FgColorSet
+		}
+		if !s.TextAlignSet {
+			s.TextAlign = parentStyle.TextAlign
+			s.TextAlignSet = parentStyle.TextAlignSet
+		}
+		if !s.BoldSet {
+			s.Bold = parentStyle.Bold
+			s.BoldSet = parentStyle.BoldSet
+		}
+		if !s.ItalicSet {
+			s.Italic = parentStyle.Italic
+			s.ItalicSet = parentStyle.ItalicSet
+		}
+		if !s.UnderlineSet {
+			s.Underline = parentStyle.Underline
+			s.UnderlineSet = parentStyle.UnderlineSet
+		}
+	}
 
 	return s
 }
@@ -385,24 +412,35 @@ func applyDeclaration(s *ComputedStyle, decl *css.Declaration) {
 
 	case "color":
 		s.FgColor = decl.Value
+		s.FgColorSet = true
 	case "background-color", "background":
 		s.BgColor = decl.Value
 	case "border-color":
 		s.BorderColor = decl.Value
 
 	case "font-weight":
+		s.BoldSet = true
 		if val == "bold" || val == "700" || val == "800" || val == "900" {
 			s.Bold = true
+		} else if val == "normal" || val == "400" {
+			s.Bold = false
 		}
 	case "font-style":
-		if val == "italic" {
+		s.ItalicSet = true
+		if val == "italic" || val == "oblique" {
 			s.Italic = true
+		} else if val == "normal" {
+			s.Italic = false
 		}
-	case "text-decoration":
+	case "text-decoration", "text-decoration-line":
+		s.UnderlineSet = true
 		if strings.Contains(val, "underline") {
 			s.Underline = true
+		} else if strings.Contains(val, "none") {
+			s.Underline = false
 		}
 	case "text-align":
+		s.TextAlignSet = true
 		switch val {
 		case "center":
 			s.TextAlign = lipgloss.Center
@@ -411,7 +449,6 @@ func applyDeclaration(s *ComputedStyle, decl *css.Declaration) {
 		case "left", "start":
 			s.TextAlign = lipgloss.Left
 		}
-
 	case "box-shadow":
 		s.Shadow = parseInt(val)
 	}

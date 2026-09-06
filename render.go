@@ -2,6 +2,7 @@ package termstrap
 
 import (
 	"image"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -96,6 +97,43 @@ func (m Model) renderWithOverlays(withOverlays bool) (string, []ImageOverlay, er
 		return "", nil, err
 	}
 
+	// Extract embedded <style> tags
+	doc.Find("style").Each(func(i int, s *goquery.Selection) {
+		text := s.Text()
+		if strings.TrimSpace(text) != "" {
+			m.Stylesheets = append(m.Stylesheets, text)
+		}
+	})
+
+	// Extract linked <link rel="stylesheet"> tags
+	doc.Find("link[rel='stylesheet']").Each(func(i int, s *goquery.Selection) {
+		href, exists := s.Attr("href")
+		if !exists || strings.TrimSpace(href) == "" {
+			return
+		}
+		href = strings.TrimSpace(href)
+		if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
+			client := &http.Client{Timeout: 5 * time.Second}
+			resp, err := client.Get(href)
+			if err == nil {
+				defer resp.Body.Close()
+				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+					if data, err := io.ReadAll(resp.Body); err == nil {
+						m.Stylesheets = append(m.Stylesheets, string(data))
+					}
+				}
+			}
+		} else {
+			path := href
+			if m.RootPath != "" && !filepath.IsAbs(path) {
+				path = filepath.Join(m.RootPath, path)
+			}
+			if data, err := os.ReadFile(path); err == nil {
+				m.Stylesheets = append(m.Stylesheets, string(data))
+			}
+		}
+	})
+
 	matcher, err := NewCSSMatcher(m.Theme, m.Stylesheets...)
 	if err != nil {
 		return "", nil, err
@@ -114,7 +152,7 @@ func (m Model) renderWithOverlays(withOverlays bool) (string, []ImageOverlay, er
 		termWidth = 80
 	}
 
-	renderTree := BuildRenderTree(rootSel, matcher, termWidth)
+	renderTree := BuildRenderTree(rootSel, matcher, termWidth, nil)
 	if renderTree == nil {
 		return "", nil, nil
 	}
