@@ -132,12 +132,15 @@ run_test "URL-encoded %20 filename resolution" "make render -- '$TMP_DIR/80s%20H
 # Scenario 7: Legacy FILE= and custom width/theme flags
 run_test "Legacy FILE= syntax with WIDTH and THEME" "make render FILE=$TMP_DIR/grid.html WIDTH=80 THEME=tokyonight" "Col 1"
 
-# Scenario 9: Full HTML Torrent Details file (examples/bootstrap/80s Huge Hits FLAC 2026.html)
-run_test "Full Torrent File Stacked (width 100)" "make render -- 'examples/bootstrap/80s Huge Hits FLAC 2026.html' -w 100" "80s Huge Hits FLAC 2026"
-run_test "Full Torrent File 2-Col Grid (width 180, col-xl-6)" "make render -- 'examples/bootstrap/80s Huge Hits FLAC 2026.html' -w 180" "Description"
+# Scenario 9: Full HTML Torrent Details file (template.html)
+run_test "Full Torrent File Stacked (width 100)" "make render -- template.html -w 100" "80s Huge Hits FLAC 2026"
+run_test "Full Torrent File 2-Col Grid (width 180)" "make render -- template.html -w 180" "Tracklist"
 
 # Scenario 10: 256 Colors Quantization Mode (-c 256)
 run_test "256 Colors Quantization Mode (-c 256)" "make render -- $TMP_DIR/alerts.html -w 80 -c 256" "Success Alert"
+
+# Scenario 11: CLI help and watch flag support
+run_test "CLI --watch flag in help" "go run ./cmd/termstrap -h" "-watch"
 printf "\n${C_BOLD}${C_CYAN}──────────────────────────────────────────────────────────────────${C_RESET}\n"
 if [ $FAILED -eq 0 ]; then
   printf "  ${C_GREEN}${C_BOLD}✓ All $TOTAL E2E tests passed successfully!${C_RESET}\n"
