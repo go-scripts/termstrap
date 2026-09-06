@@ -85,3 +85,10 @@ func WithCacheTTL(ttl time.Duration) Option {
 	}
 }
 
+// WithDisableImages controls whether images are replaced by alt text.
+func WithDisableImages(disable bool) Option {
+	return func(m *Model) {
+		m.DisableImages = disable
+	}
+}
+
