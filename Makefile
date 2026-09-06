@@ -2,10 +2,55 @@
 
 .PHONY: help test test-v test-short test-cover test-cover-html \
        test-unit test-layout test-shadow test-image test-grid test-utils \
+       test-e2e test-e2e-v test-e2e-output \
        examples examples-local examples-network example \
        test-examples test-examples-short \
-       build check ci lint vet clean
+       build check ci lint vet clean render view
 
+# --- Argument passthrough for make <cmd> -- <args> ---
+ifeq ($(firstword $(MAKECMDGOALS)),$(filter $(firstword $(MAKECMDGOALS)),render view))
+  CMD_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  ifeq ($(firstword $(CMD_ARGS)),--)
+    CMD_ARGS := $(wordlist 2,$(words $(CMD_ARGS)),$(CMD_ARGS))
+  endif
+  $(foreach target,$(MAKECMDGOALS),$(if $(filter-out render view,$(target)),$(eval $(target): _force;@:)))
+  _force:
+  %:
+	@:
+endif
+
+# --- Render / CLI ---
+
+FILE ?= $(filepath)
+WIDTH ?=
+THEME ?=
+ROOT ?=
+FLAGS ?=
+
+render:
+	@if [ -n "$(CMD_ARGS)" ]; then \
+		go run ./cmd/termstrap $(CMD_ARGS); \
+	elif [ -n "$(FILE)" ]; then \
+		go run ./cmd/termstrap \
+			$(if $(WIDTH),-w $(WIDTH)) \
+			$(if $(THEME),-t $(THEME)) \
+			$(if $(ROOT),-r $(ROOT)) \
+			$(FLAGS) \
+			"$(FILE)"; \
+	else \
+		printf '$(C_YELLOW)Error: Please specify a file or arguments$(C_RESET)\n\n'; \
+		printf 'Usage:\n'; \
+		printf '  $(C_CYAN)make render -- <file> [options]$(C_RESET)\n'; \
+		printf '  $(C_CYAN)make render FILE=<path> [WIDTH=100] [THEME=dracula]$(C_RESET)\n\n'; \
+		printf 'Examples:\n'; \
+		printf '  make render -- page.html\n'; \
+		printf '  make render -- page.html -w 100 -t tokyonight\n'; \
+		printf '  make render -- - < page.html\n'; \
+		printf '  make render FILE=page.html WIDTH=100 THEME=dracula\n'; \
+		exit 1; \
+	fi
+
+view: render
 # --- Build ---
 
 build:
@@ -21,6 +66,13 @@ lint: vet
 
 test:
 	go test ./... -count=1
+
+test-e2e:
+	@./examples/cli/test_e2e.sh
+
+test-e2e-v:
+	@./examples/cli/test_e2e.sh -v
+test-e2e-output: test-e2e-v
 
 test-v:
 	go test ./... -count=1 -v
@@ -127,6 +179,10 @@ help:
 	@printf '  $(C_CYAN)║$(C_RESET)  $(C_BOLD)$(C_WHITE)termstrap$(C_RESET) — Bootstrap-like layout for the terminal          $(C_CYAN)║$(C_RESET)\n'
 	@printf '  $(C_CYAN)╚══════════════════════════════════════════════════════════════════╝$(C_RESET)\n'
 	@printf '\n'
+	@printf '  $(C_GREEN)RENDER & CLI$(C_RESET)\n'
+	@printf '  $(C_CYAN)make render FILE=<path>$(C_RESET)   Render an HTML file in terminal (e.g. WIDTH=100 THEME=tokyonight)\n'
+	@printf '  $(C_CYAN)make view FILE=<path>$(C_RESET)     Alias for make render\n'
+	@printf '\n'
 	@printf '  $(C_GREEN)BUILD & LINT$(C_RESET)\n'
 	@printf '  $(C_CYAN)make build$(C_RESET)               Compile all packages                          \n'
 	@printf '  $(C_CYAN)make vet$(C_RESET)                 Run go vet static analysis                    \n'
@@ -134,6 +190,9 @@ help:
 	@printf '\n'
 	@printf '  $(C_GREEN)TESTS — ALL$(C_RESET)\n'
 	@printf '  $(C_CYAN)make test$(C_RESET)                Run all tests                                 \n'
+	@printf '  $(C_CYAN)make test-e2e$(C_RESET)            Run End-to-End bash test suite for make render\n'
+	@printf '  $(C_CYAN)make test-e2e-v$(C_RESET)          Run E2E test suite with full visual render output\n'
+	@printf '  $(C_CYAN)make test-e2e-output$(C_RESET)     Alias for make test-e2e-v\n'
 	@printf '  $(C_CYAN)make test-v$(C_RESET)              Run all tests (verbose)                       \n'
 	@printf '  $(C_CYAN)make test-short$(C_RESET)          Run all tests, skip network examples          \n'
 	@printf '  $(C_CYAN)make test-cover$(C_RESET)          Run tests + print coverage summary            \n'
