@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/net/html"
 )
 
@@ -27,8 +28,10 @@ type RenderNode struct {
 	Children []*RenderNode
 
 	// Layout Geometry (calculated in character cells)
-	AllocatedWidth int
-	ContentWidth   int
+	AllocatedWidth int // Parent allocated width
+	BoxWidth       int // Width between outer border edges (AllocatedWidth - Margins - Shadow)
+	LipglossWidth  int // Width passed to lipgloss.Width() (BoxWidth - Borders)
+	ContentWidth   int // Inner width for text and children (LipglossWidth - Padding)
 	Height         int
 	X              int // Relative offset in parent
 	Y              int
@@ -42,13 +45,35 @@ func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int)
 	}
 
 	if node.Type == html.TextNode {
-		text := strings.TrimSpace(node.Data)
-		if text == "" {
+		raw := node.Data
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			if len(raw) > 0 {
+				return &RenderNode{
+					Type:  NodeText,
+					Text:  " ",
+					Style: ComputedStyle{Display: DisplayInline},
+				}
+			}
 			return nil
 		}
+
+		words := strings.Fields(raw)
+		hasLeading := raw[0] == ' ' || raw[0] == '\t' || raw[0] == '\n' || raw[0] == '\r'
+		hasTrailing := raw[len(raw)-1] == ' ' || raw[len(raw)-1] == '\t' || raw[len(raw)-1] == '\n' || raw[len(raw)-1] == '\r'
+
+		var sb strings.Builder
+		if hasLeading {
+			sb.WriteString(" ")
+		}
+		sb.WriteString(strings.Join(words, " "))
+		if hasTrailing {
+			sb.WriteString(" ")
+		}
+
 		return &RenderNode{
 			Type:  NodeText,
-			Text:  text,
+			Text:  sb.String(),
 			Style: ComputedStyle{Display: DisplayInline},
 		}
 	}
@@ -70,6 +95,12 @@ func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int)
 	if tag == "tr" {
 		style.Display = DisplayFlex
 	}
+	if tag == "th" || tag == "td" {
+		style.ColAuto = true
+	}
+	if tag == "br" {
+		style.Display = DisplayInline
+	}
 
 	rNode := &RenderNode{
 		Type:  NodeElement,
@@ -84,11 +115,26 @@ func BuildRenderTree(sel *goquery.Selection, matcher *CSSMatcher, termWidth int)
 		return rNode
 	}
 
+	if tag == "pre" {
+		rNode.Text = sel.Text()
+		return rNode
+	}
+
 	// Recursively build children
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
 		childSel := sel.FindNodes(c)
 		childRNode := BuildRenderTree(childSel, matcher, termWidth)
 		if childRNode != nil {
+			if rNode.Style.Display == DisplayFlex && childRNode.Type == NodeText && strings.TrimSpace(childRNode.Text) == "" {
+				continue
+			}
+			// Inherit CSS properties (color, text-align)
+			if childRNode.Style.FgColor == "" && rNode.Style.FgColor != "" {
+				childRNode.Style.FgColor = rNode.Style.FgColor
+			}
+			if childRNode.Style.TextAlign == lipgloss.Left && rNode.Style.TextAlign != lipgloss.Left {
+				childRNode.Style.TextAlign = rNode.Style.TextAlign
+			}
 			rNode.Children = append(rNode.Children, childRNode)
 		}
 	}
@@ -110,63 +156,71 @@ func computeWidths(node *RenderNode, parentWidth int) {
 		return
 	}
 
-	// Reduce available width by margins and borders
-	avail := parentWidth - node.Style.MarginLeft - node.Style.MarginRight
-	if node.Style.Border || node.Style.BorderLeft {
-		avail--
-	}
-	if node.Style.Border || node.Style.BorderRight {
-		avail--
-	}
-	if node.Style.Shadow > 0 {
-		avail -= node.Style.Shadow
-	}
+	// Reduce available width by margins and shadow
+	avail := parentWidth - node.Style.MarginLeft - node.Style.MarginRight - node.Style.Shadow
 	if avail < 1 {
 		avail = 1
 	}
 
-	node.AllocatedWidth = parentWidth
-	node.ContentWidth = avail - node.Style.PaddingLeft - node.Style.PaddingRight
-	if node.ContentWidth < 1 {
-		node.ContentWidth = 1
+	borderH := 0
+	if node.Style.Border || node.Style.BorderLeft {
+		borderH++
+	}
+	if node.Style.Border || node.Style.BorderRight {
+		borderH++
 	}
 
+	lipglossW := avail - borderH
+	if lipglossW < 1 {
+		lipglossW = 1
+	}
+
+	paddingH := node.Style.PaddingLeft + node.Style.PaddingRight
+	contentW := lipglossW - paddingH
+	if contentW < 1 {
+		contentW = 1
+	}
+
+	node.AllocatedWidth = parentWidth
+	node.BoxWidth = avail
+	node.LipglossWidth = lipglossW
+	node.ContentWidth = contentW
 	if node.Style.Display == DisplayFlex {
-		// Calculate columns total span
-		totalSpan := 0
+		// Calculate count of auto columns
 		autoCount := 0
 		for _, child := range node.Children {
-			if child.Style.ColSpan > 0 {
-				totalSpan += child.Style.ColSpan
-			} else {
+			if child.Style.ColSpan == 0 || child.Style.ColAuto {
 				autoCount++
 			}
 		}
 
-		if totalSpan > 12 {
-			// Wrapping / Stacking condition: columns exceed 12
-			for _, child := range node.Children {
-				computeWidths(child, node.ContentWidth)
-			}
-		} else {
-			remainingWidth := node.ContentWidth
-			for _, child := range node.Children {
-				var colWidth int
-				if child.Style.ColSpan > 0 {
-					colWidth = (node.ContentWidth * child.Style.ColSpan) / 12
-				} else if autoCount > 0 {
-					colWidth = remainingWidth / autoCount
+		// Resolve column spans for all children
+		for _, child := range node.Children {
+			if child.Style.ColSpan == 0 || child.Style.ColAuto {
+				if node.Style.RowCols > 0 {
+					child.Style.ColSpan = 12 / node.Style.RowCols
+				} else if autoCount > 0 && autoCount <= 12 {
+					child.Style.ColSpan = 12 / autoCount
 				} else {
-					colWidth = remainingWidth
+					child.Style.ColSpan = 12
 				}
-				if colWidth < 1 {
-					colWidth = 1
-				}
-				computeWidths(child, colWidth)
+			}
+			if child.Style.ColSpan < 1 {
+				child.Style.ColSpan = 1
+			}
+			if child.Style.ColSpan > 12 {
+				child.Style.ColSpan = 12
 			}
 		}
+
+		for _, child := range node.Children {
+			colWidth := (node.ContentWidth * child.Style.ColSpan) / 12
+			if colWidth < 1 {
+				colWidth = 1
+			}
+			computeWidths(child, colWidth)
+		}
 	} else {
-		// Block distribution
 		for _, child := range node.Children {
 			computeWidths(child, node.ContentWidth)
 		}
