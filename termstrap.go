@@ -1,5 +1,11 @@
 package termstrap
 
+import (
+	"time"
+
+	termimage "github.com/go-scripts/termstrap/image"
+)
+
 // Theme represents a visual color scheme.
 type Theme string
 
@@ -48,6 +54,34 @@ func WithRootPath(path string) Option {
 func WithTheme(theme Theme) Option {
 	return func(m *Model) {
 		m.Theme = theme
+	}
+}
+
+// WithImageRenderer sets a custom image renderer.
+func WithImageRenderer(renderer termimage.Renderer) Option {
+	return func(m *Model) {
+		m.ImageRenderer = renderer
+	}
+}
+
+// WithColorMode sets the color depth for rendering.
+func WithColorMode(mode termimage.ColorMode) Option {
+	return func(m *Model) {
+		m.ColorMode = mode
+	}
+}
+
+// WithCachePolicy sets the image caching policy.
+func WithCachePolicy(policy CachePolicy) Option {
+	return func(m *Model) {
+		m.CachePolicy = policy
+	}
+}
+
+// WithCacheTTL sets the time-to-live for cached items.
+func WithCacheTTL(ttl time.Duration) Option {
+	return func(m *Model) {
+		m.CacheTTL = ttl
 	}
 }
 
