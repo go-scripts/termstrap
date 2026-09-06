@@ -6,8 +6,11 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/go-scripts/termstrap"
 	termimage "github.com/go-scripts/termstrap/image"
@@ -24,6 +27,7 @@ func main() {
 		cssFileFlag     string
 		disableImgFlag  bool
 		optimizeSeqFlag bool
+		watchFlag       bool
 	)
 
 	flag.IntVar(&widthFlag, "width", 0, "Terminal width in columns (0 = auto-detect)")
@@ -39,6 +43,8 @@ func main() {
 	flag.StringVar(&cssFileFlag, "css", "", "Path to custom CSS stylesheet file")
 	flag.BoolVar(&disableImgFlag, "no-images", false, "Disable image rendering and replace with text placeholders")
 	flag.BoolVar(&optimizeSeqFlag, "optimize", true, "Deduplicate contiguous ANSI escape sequences")
+	flag.BoolVar(&watchFlag, "watch", false, "Watch file for changes and automatically reload render")
+	flag.BoolVar(&watchFlag, "W", false, "Watch file for changes (shorthand)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: termstrap [options] <file.html|-|stdin>\n\n")
@@ -47,6 +53,7 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  termstrap file.html\n")
+		fmt.Fprintf(os.Stderr, "  termstrap --watch file.html\n")
 		fmt.Fprintf(os.Stderr, "  termstrap -w 100 -t dracula file.html\n")
 		fmt.Fprintf(os.Stderr, "  cat file.html | termstrap -\n")
 		fmt.Fprintf(os.Stderr, "  make render FILE=file.html\n")
@@ -134,69 +141,173 @@ func main() {
 		}
 	}
 
+	buildModel := func(htmlContent string, w int) (*termstrap.Model, error) {
+		m := &termstrap.Model{
+			HTML:              htmlContent,
+			Width:             w,
+			Theme:             termstrap.Theme(themeFlag),
+			RootPath:          rootPathFlag,
+			DisableImages:     disableImgFlag,
+			OptimizeSequences: &optimizeSeqFlag,
+		}
+
+		if cssFileFlag != "" {
+			cssBytes, err := os.ReadFile(cssFileFlag)
+			if err != nil {
+				return nil, fmt.Errorf("reading CSS file %q: %w", cssFileFlag, err)
+			}
+			m.Stylesheets = append(m.Stylesheets, string(cssBytes))
+		}
+
+		var imgOpts []termimage.Option
+		if protocolFlag != "" {
+			switch protocolFlag {
+			case "halfblock":
+				imgOpts = append(imgOpts, termimage.WithProtocol(termimage.HalfBlock))
+			case "kitty":
+				imgOpts = append(imgOpts, termimage.WithProtocol(termimage.Kitty))
+			case "iterm", "iterm2":
+				imgOpts = append(imgOpts, termimage.WithProtocol(termimage.ITerm2))
+			case "sixel":
+				imgOpts = append(imgOpts, termimage.WithProtocol(termimage.Sixel))
+			}
+		}
+		if colorModeFlag != "" {
+			if cm, ok := termimage.ParseColorMode(colorModeFlag); ok {
+				imgOpts = append(imgOpts, termimage.WithColorMode(cm))
+				m.ColorMode = cm
+			}
+		}
+		imgOpts = append(imgOpts, termimage.WithOptimizeSequences(optimizeSeqFlag))
+		if len(imgOpts) > 0 {
+			m.ImageRenderer = termimage.NewRenderer(imgOpts...)
+		}
+
+		return m, nil
+	}
+
+	resolveWidth := func() int {
+		if widthFlag > 0 {
+			return widthFlag
+		}
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+			return w
+		}
+		return 80
+	}
+
+	if watchFlag {
+		if inputFilePath == "" {
+			fmt.Fprintf(os.Stderr, "Error: --watch requires an input file path, cannot watch stdin\n")
+			os.Exit(1)
+		}
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+		renderAndDisplay := func() (int, time.Time, int64, time.Time, int64, error) {
+			curWidth := resolveWidth()
+
+			fileInfo, err := os.Stat(inputFilePath)
+			if err != nil {
+				return curWidth, time.Time{}, 0, time.Time{}, 0, err
+			}
+			fMod := fileInfo.ModTime()
+			fSize := fileInfo.Size()
+
+			var cssMod time.Time
+			var cssSize int64
+			if cssFileFlag != "" {
+				cssInfo, err := os.Stat(cssFileFlag)
+				if err != nil {
+					return curWidth, fMod, fSize, time.Time{}, 0, err
+				}
+				cssMod = cssInfo.ModTime()
+				cssSize = cssInfo.Size()
+			}
+
+			contentBytes, err := os.ReadFile(inputFilePath)
+			if err != nil {
+				return curWidth, fMod, fSize, cssMod, cssSize, err
+			}
+
+			m, err := buildModel(string(contentBytes), curWidth)
+			if err != nil {
+				return curWidth, fMod, fSize, cssMod, cssSize, err
+			}
+
+			out, err := m.Render()
+			if err != nil {
+				return curWidth, fMod, fSize, cssMod, cssSize, err
+			}
+
+			// Clear screen and print
+			fmt.Print("\033[H\033[2J")
+			fmt.Print(out)
+
+			return curWidth, fMod, fSize, cssMod, cssSize, nil
+		}
+
+		lastWidth, lastMod, lastSize, lastCSSMod, lastCSSSize, err := renderAndDisplay()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Initial render error: %v\n", err)
+		}
+
+		ticker := time.NewTicker(150 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-sigChan:
+				fmt.Println()
+				return
+			case <-ticker.C:
+				curW := resolveWidth()
+
+				fi, err := os.Stat(inputFilePath)
+				if err != nil {
+					continue
+				}
+
+				changed := curW != lastWidth || fi.ModTime() != lastMod || fi.Size() != lastSize
+
+				if !changed && cssFileFlag != "" {
+					if cssFi, err := os.Stat(cssFileFlag); err == nil {
+						if cssFi.ModTime() != lastCSSMod || cssFi.Size() != lastCSSSize {
+							changed = true
+						}
+					}
+				}
+
+				if changed {
+					time.Sleep(30 * time.Millisecond)
+					newW, newMod, newSize, newCSSMod, newCSSSize, err := renderAndDisplay()
+					if err == nil {
+						lastWidth = newW
+						lastMod = newMod
+						lastSize = newSize
+						lastCSSMod = newCSSMod
+						lastCSSSize = newCSSSize
+					}
+				}
+			}
+		}
+	}
+
 	contentBytes, err := io.ReadAll(inputReader)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading content: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Resolve terminal width
-	width := widthFlag
-	if width <= 0 {
-		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
-			width = w
-		} else {
-			width = 80
-		}
+	width := resolveWidth()
+	m, err := buildModel(string(contentBytes), width)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Configuration error: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Prepare Model
-	model := termstrap.Model{
-		HTML:              string(contentBytes),
-		Width:             width,
-		Theme:             termstrap.Theme(themeFlag),
-		RootPath:          rootPathFlag,
-		DisableImages:     disableImgFlag,
-		OptimizeSequences: &optimizeSeqFlag,
-	}
-
-	// Custom CSS stylesheet
-	if cssFileFlag != "" {
-		cssBytes, err := os.ReadFile(cssFileFlag)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading CSS file %q: %v\n", cssFileFlag, err)
-			os.Exit(1)
-		}
-		model.Stylesheets = append(model.Stylesheets, string(cssBytes))
-	}
-
-	// Image renderer options
-	var imgOpts []termimage.Option
-	if protocolFlag != "" {
-		switch protocolFlag {
-		case "halfblock":
-			imgOpts = append(imgOpts, termimage.WithProtocol(termimage.HalfBlock))
-		case "kitty":
-			imgOpts = append(imgOpts, termimage.WithProtocol(termimage.Kitty))
-		case "iterm", "iterm2":
-			imgOpts = append(imgOpts, termimage.WithProtocol(termimage.ITerm2))
-		case "sixel":
-			imgOpts = append(imgOpts, termimage.WithProtocol(termimage.Sixel))
-		}
-	}
-	if colorModeFlag != "" {
-		if cm, ok := termimage.ParseColorMode(colorModeFlag); ok {
-			imgOpts = append(imgOpts, termimage.WithColorMode(cm))
-			model.ColorMode = cm
-		}
-	}
-	imgOpts = append(imgOpts, termimage.WithOptimizeSequences(optimizeSeqFlag))
-
-	if len(imgOpts) > 0 {
-		model.ImageRenderer = termimage.NewRenderer(imgOpts...)
-	}
-
-	output, err := model.Render()
+	output, err := m.Render()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Render error: %v\n", err)
 		os.Exit(1)
