@@ -213,12 +213,46 @@ func computeWidths(node *RenderNode, parentWidth int) {
 			}
 		}
 
+		type flexSubRow struct {
+			children []*RenderNode
+			spans    []int
+			spanSum  int
+		}
+
+		var subRows []flexSubRow
+		currentSubRow := flexSubRow{}
+
 		for _, child := range node.Children {
-			colWidth := (node.ContentWidth * child.Style.ColSpan) / 12
-			if colWidth < 1 {
-				colWidth = 1
+			span := child.Style.ColSpan
+			if len(currentSubRow.children) > 0 && currentSubRow.spanSum+span > 12 {
+				subRows = append(subRows, currentSubRow)
+				currentSubRow = flexSubRow{}
 			}
-			computeWidths(child, colWidth)
+			currentSubRow.children = append(currentSubRow.children, child)
+			currentSubRow.spans = append(currentSubRow.spans, span)
+			currentSubRow.spanSum += span
+		}
+		if len(currentSubRow.children) > 0 {
+			subRows = append(subRows, currentSubRow)
+		}
+
+		for _, row := range subRows {
+			targetWidth := (node.ContentWidth * row.spanSum) / 12
+			if row.spanSum >= 12 {
+				targetWidth = node.ContentWidth
+			}
+			remWidth := targetWidth
+			remSpan := row.spanSum
+			for i, child := range row.children {
+				span := row.spans[i]
+				colWidth := (remWidth * span) / remSpan
+				if colWidth < 1 {
+					colWidth = 1
+				}
+				remWidth -= colWidth
+				remSpan -= span
+				computeWidths(child, colWidth)
+			}
 		}
 	} else {
 		for _, child := range node.Children {

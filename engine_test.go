@@ -258,3 +258,40 @@ func TestEngine_BackgroundColorAcrossCenteredText(t *testing.T) {
 		}
 	}
 }
+
+func TestEngine_ColumnWidthFullAllocation(t *testing.T) {
+	html := `<div class="container p-1">
+		<div class="border rounded p-1 mb-1">Header Card</div>
+		<div class="row">
+			<div class="col-5 border rounded p-1">Col 1</div>
+			<div class="col-7 border rounded p-1">Col 2</div>
+		</div>
+	</div>`
+
+	m := New(html, WithWidth(100))
+	out, err := m.Render()
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	lines := strings.Split(out, "\n")
+	var headerRightEdge, rowRightEdge int
+	for _, line := range lines {
+		w := lipgloss.Width(line)
+		if strings.Contains(line, "Header Card") {
+			headerRightEdge = w
+		}
+		if strings.Contains(line, "Col 1") && strings.Contains(line, "Col 2") {
+			rowRightEdge = w
+		}
+	}
+
+	if headerRightEdge == 0 || rowRightEdge == 0 {
+		t.Fatalf("Failed to detect rendered lines in output:\n%s", out)
+	}
+
+	if headerRightEdge != rowRightEdge {
+		t.Errorf("Expected 2-column row width (%d) to match header card width (%d), got diff: %d",
+			rowRightEdge, headerRightEdge, rowRightEdge-headerRightEdge)
+	}
+}
