@@ -2,7 +2,7 @@
 
 .PHONY: help test test-v test-short test-cover test-cover-html \
        test-unit test-layout test-shadow test-image test-grid test-utils \
-       test-e2e test-e2e-v test-e2e-output \
+       test-e2e test-e2e-v test-e2e-i test-e2e-output test-interactive test-vt-interactive \
        examples examples-local examples-network example \
        test-examples test-examples-short \
        build check ci lint vet clean render view
@@ -74,6 +74,12 @@ test-e2e-v:
 	@./examples/cli/test_e2e.sh -v
 test-e2e-output: test-e2e-v
 
+test-e2e-i:
+	@./examples/cli/test_e2e.sh -i
+test-interactive: test-e2e-i
+
+test-vt-interactive:
+	INTERACTIVE=1 go test -v -count=1 -run "TestE2E" .
 test-v:
 	go test ./... -count=1 -v
 
@@ -192,6 +198,8 @@ help:
 	@printf '  $(C_CYAN)make test$(C_RESET)                Run all tests                                 \n'
 	@printf '  $(C_CYAN)make test-e2e$(C_RESET)            Run End-to-End bash test suite for make render\n'
 	@printf '  $(C_CYAN)make test-e2e-v$(C_RESET)          Run E2E test suite with full visual render output\n'
+	@printf '  $(C_CYAN)make test-interactive$(C_RESET)    Run E2E tests with visual output & step-by-step validation\n'
+	@printf '  $(C_CYAN)make test-vt-interactive$(C_RESET) Run Go VT buffer E2E tests with visual pause\n'
 	@printf '  $(C_CYAN)make test-e2e-output$(C_RESET)     Alias for make test-e2e-v\n'
 	@printf '  $(C_CYAN)make test-v$(C_RESET)              Run all tests (verbose)                       \n'
 	@printf '  $(C_CYAN)make test-short$(C_RESET)          Run all tests, skip network examples          \n'

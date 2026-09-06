@@ -21,13 +21,27 @@ export CLICOLOR_FORCE="1"
 export TERM="xterm-256color"
 
 SHOW_OUTPUT=0
-if [ "$1" = "-v" ] || [ "$1" = "--verbose" ] || [ "$1" = "--output" ] || [ "${VERBOSE:-0}" = "1" ]; then
+INTERACTIVE_MODE=0
+
+for arg in "$@"; do
+  if [ "$arg" = "-v" ] || [ "$arg" = "--verbose" ] || [ "$arg" = "--output" ]; then
+    SHOW_OUTPUT=1
+  fi
+  if [ "$arg" = "-i" ] || [ "$arg" = "--interactive" ]; then
+    INTERACTIVE_MODE=1
+    SHOW_OUTPUT=1
+  fi
+done
+if [ "${VERBOSE:-0}" = "1" ]; then
+  SHOW_OUTPUT=1
+fi
+if [ "${INTERACTIVE:-0}" = "1" ] || [ "${TERMSTRAP_INTERACTIVE:-0}" = "1" ]; then
+  INTERACTIVE_MODE=1
   SHOW_OUTPUT=1
 fi
 TOTAL=0
 PASSED=0
 FAILED=0
-
 run_test() {
   local name="$1"
   local cmd="$2"
@@ -49,10 +63,17 @@ run_test() {
       printf "    ${C_YELLOW}Command:${C_RESET} %s\n\n" "$cmd"
       echo "$output"
       printf "\n"
+      if [ $INTERACTIVE_MODE -eq 1 ]; then
+        read -r -p "    [Appuyez sur Entrée pour continuer (ou 'q' pour quitter)...] " user_input </dev/tty || true
+        if [ "$user_input" = "q" ] || [ "$user_input" = "Q" ]; then
+          printf "\n${C_RED}Tests interrompus par l'utilisateur.${C_RESET}\n"
+          exit 1
+        fi
+        printf "\n"
+      fi
     fi
   else
     printf "${C_RED}[FAIL]${C_RESET}\n"
-    printf "    ${C_YELLOW}Command:${C_RESET} %s\n" "$cmd"
     printf "    ${C_YELLOW}Expected substring:${C_RESET} %s\n\n" "$expected_contain"
     echo "$output" | head -n 15
     printf "\n"
