@@ -75,11 +75,19 @@ func (m Model) renderWithOverlays(withOverlays bool) (string, []ImageOverlay, er
 		return "", nil, nil
 	}
 
-	// Ensure color output is not silently stripped in non-interactive/SSH environments
-	if lipgloss.ColorProfile() == termenv.Ascii {
-		if m.ColorMode == termimage.ColorMode256 {
-			lipgloss.SetColorProfile(termenv.ANSI256)
-		} else {
+	// Configure Lipgloss color profile based on ColorMode and environment
+	switch m.ColorMode {
+	case termimage.ColorMode256:
+		lipgloss.SetColorProfile(termenv.ANSI256)
+	case termimage.ColorMode16:
+		lipgloss.SetColorProfile(termenv.ANSI)
+	case termimage.ColorModeTrueColor:
+		lipgloss.SetColorProfile(termenv.TrueColor)
+	default:
+		colorTerm := strings.ToLower(os.Getenv("COLORTERM"))
+		if colorTerm == "truecolor" || colorTerm == "24bit" || os.Getenv("CLICOLOR_FORCE") == "1" {
+			lipgloss.SetColorProfile(termenv.TrueColor)
+		} else if lipgloss.ColorProfile() == termenv.Ascii {
 			lipgloss.SetColorProfile(termenv.TrueColor)
 		}
 	}
