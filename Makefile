@@ -64,7 +64,7 @@ lint: vet
 
 # --- Tests (all) ---
 
-test:
+test: test-e2e
 	go test ./... -count=1
 
 test-e2e:
