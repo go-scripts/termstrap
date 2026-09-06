@@ -41,10 +41,7 @@ func main() {
 <div><img src="https://go.dev/doc/gopher/frontpage.png" alt="gopher" /></div>
 `
 
-	m := termstrap.Model{
-		HTML:  content,
-		Width: width,
-	}
+	m := termstrap.New(content, termstrap.WithWidth(width))
 	output, err := m.Render()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

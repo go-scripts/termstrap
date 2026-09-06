@@ -43,10 +43,7 @@ func main() {
 <div><img src="https://www.gstatic.com/webp/gallery/1.webp" alt="second" /></div>
 `
 
-	m := termstrap.Model{
-		HTML:  content,
-		Width: width,
-	}
+	m := termstrap.New(content, termstrap.WithWidth(width))
 	output, err := m.Render()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -41,12 +41,12 @@ func main() {
 <div><img src="test.png" alt="default" /></div>
 `
 
-	m := termstrap.Model{
-		HTML:     content,
-		Width:    width,
-		RootPath: tmpDir,
-		CacheTTL: 10 * time.Minute,
-	}
+	m := termstrap.New(
+		content,
+		termstrap.WithWidth(width),
+		termstrap.WithRootPath(tmpDir),
+		termstrap.WithCacheTTL(10*time.Minute),
+	)
 
 	out, err := m.Render()
 	if err != nil {

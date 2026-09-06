@@ -48,12 +48,12 @@ func main() {
 </div>
 `
 
-	m := termstrap.Model{
-		HTML:      content,
-		Width:     width,
-		RootPath:  tmpDir,
-		ColorMode: termimage.ColorModeTrueColor,
-	}
+	m := termstrap.New(
+		content,
+		termstrap.WithWidth(width),
+		termstrap.WithRootPath(tmpDir),
+		termstrap.WithColorMode(termimage.ColorModeTrueColor),
+	)
 
 	out, err := m.Render()
 	if err != nil {

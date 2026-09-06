@@ -110,11 +110,11 @@ func main() {
 </div>
 `
 
-	m := termstrap.Model{
-		HTML:          content,
-		Width:         width,
-		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
-	}
+	m := termstrap.New(
+		content,
+		termstrap.WithWidth(width),
+		termstrap.WithImageRenderer(termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock))),
+	)
 	output, err := m.Render()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

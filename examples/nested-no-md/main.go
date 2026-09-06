@@ -83,12 +83,12 @@ func main() {
 <p>Text after nested layout.</p>
 `
 
-	m := termstrap.Model{
-		HTML:          content,
-		Width:         width,
-		RootPath:      ".",
-		ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
-	}
+	m := termstrap.New(
+		content,
+		termstrap.WithWidth(width),
+		termstrap.WithRootPath("."),
+		termstrap.WithImageRenderer(termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock))),
+	)
 	output, err := m.Render()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

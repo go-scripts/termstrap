@@ -102,11 +102,11 @@ func main() {
 	for _, w := range widths {
 		fmt.Printf("\n\033[1;36m%s\033[0m\n", w.name)
 		fmt.Println("════════════════════════════════════════")
-		m := termstrap.Model{
-			HTML:          content,
-			Width:         w.width,
-			ImageRenderer: termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock)),
-		}
+		m := termstrap.New(
+			content,
+			termstrap.WithWidth(w.width),
+			termstrap.WithImageRenderer(termimage.NewRenderer(termimage.WithProtocol(termimage.HalfBlock))),
+		)
 		output, err := m.Render()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error rendering at width %d: %v\n", w.width, err)
