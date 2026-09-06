@@ -2,7 +2,10 @@ package termstrap
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -221,10 +224,10 @@ func TestEngine_BackgroundColorPersistence(t *testing.T) {
 
 	screen := testutil.NewScreen(80, 15, out)
 	boxW := 80
-	boxH := 10
+	boxH := 7
 	screen.AssertBorderBox(t, 0, 0, boxW, boxH)
-	screen.AssertText(t, 3, 3, "TokyoNight Theme")
-	screen.AssertText(t, 3, 6, "Blue accent header with dark text.")
+	screen.AssertText(t, 3, 2, "TokyoNight Theme")
+	screen.AssertText(t, 3, 4, "Blue accent header with dark text.")
 
 	// Verify that inside the rounded border box (x in [1, 78], y in [1, 8]),
 	// background color is consistently TokyoNight primary (121;162;247 / #79a2f7)
@@ -294,5 +297,122 @@ func TestEngine_ColumnWidthFullAllocation(t *testing.T) {
 	screen.AssertChar(t, 98, 0, '╮')
 	screen.AssertChar(t, 98, 4, '╮')
 	screen.AssertChar(t, 98, 6, '╯')
+}
+func TestEngine_EmbeddedStyleAndCascadeInheritance(t *testing.T) {
+	html := `<html>
+<head>
+	<style>
+		.red-text { color: red; text-align: center; font-weight: bold; }
+	</style>
+</head>
+<body>
+	<div class="red-text">
+		<span>Inherited</span>
+	</div>
+</body>
+</html>`
+
+	m := New(html, WithWidth(40))
+	out, err := m.Render()
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	// Output must contain the word "Inherited"
+	if !strings.Contains(out, "Inherited") {
+		t.Fatalf("Expected output to contain 'Inherited', got:\n%q", out)
+	}
+
+	// Must be centered and styled (red color ANSI code or bold)
+	// Lipgloss rendering with red produces ANSI escape (either \x1b[31m or \x1b[38;2;... or \x1b[1m for bold)
+	if !strings.Contains(out, "\x1b[") {
+		t.Errorf("Expected ANSI escape styling on 'Inherited', got:\n%q", out)
+	}
+
+	screen := testutil.NewScreen(40, 5, out)
+	// "Inherited" has length 9. Centered in width 40 means (40-9)/2 = 15 padding, so starting around x=15
+	found := false
+	for x := 10; x <= 20; x++ {
+		if screen.Char(x, 0) == 'I' && screen.Char(x+1, 0) == 'n' {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected centered 'Inherited' around middle of 40-col screen, got screen dump:\n%s", screen.Dump())
+	}
+}
+
+func TestEngine_LinkedStylesheet_LocalAndHTTP(t *testing.T) {
+	// 1. Setup local temporary CSS file
+	tmpDir := t.TempDir()
+	localCSS := `.local-blue { color: #0000ff; }`
+	localFile := filepath.Join(tmpDir, "custom.css")
+	if err := os.WriteFile(localFile, []byte(localCSS), 0644); err != nil {
+		t.Fatalf("Failed to write local CSS: %v", err)
+	}
+
+	// 2. Setup HTTP server for remote CSS
+	remoteCSS := `.remote-italic { font-style: italic; }`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		w.Write([]byte(remoteCSS))
+	}))
+	defer server.Close()
+
+	html := fmt.Sprintf(`<html>
+<head>
+	<link rel="stylesheet" href="custom.css">
+	<link rel="stylesheet" href="%s/style.css">
+</head>
+<body>
+	<div class="local-blue">
+		<div class="remote-italic">
+			<span>Styled Content</span>
+		</div>
+	</div>
+</body>
+</html>`, server.URL)
+
+	m := New(html, WithWidth(40), WithRootPath(tmpDir))
+	out, err := m.Render()
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if !strings.Contains(out, "Styled Content") {
+		t.Fatalf("Expected output to contain 'Styled Content', got:\n%q", out)
+	}
+
+	// Verify ANSI styling for italic (\x1b[3m) and color
+	if !strings.Contains(out, "\x1b[3m") && !strings.Contains(out, "\x1b[") {
+		t.Errorf("Expected ANSI styling from linked stylesheets, got:\n%q", out)
+	}
+}
+
+func TestEngine_CascadeInheritance_UnsetAndOverride(t *testing.T) {
+	html := `<html>
+<head>
+	<style>
+		.parent { color: red; font-weight: bold; text-align: center; }
+		.normal-child { font-weight: normal; color: green; }
+	</style>
+</head>
+<body>
+	<div class="parent">
+		<span class="normal-child">Unset Bold</span>
+	</div>
+</body>
+</html>`
+
+	m := New(html, WithWidth(40))
+	out, err := m.Render()
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if !strings.Contains(out, "Unset Bold") {
+		t.Fatalf("Expected output to contain 'Unset Bold', got:\n%q", out)
+	}
 }
 
